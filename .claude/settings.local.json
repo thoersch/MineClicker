@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -n \"m_Name: BottomBar$\" Main.unity)",
+      "Bash(powershell -Command \"[guid]::NewGuid\\(\\).ToString\\('N'\\)\")",
+      "Bash(python3 -c \"import uuid; print\\(uuid.uuid4\\(\\).hex\\)\")",
+      "Read(//proc/sys/kernel/random/**)"
+    ]
+  }
+}
