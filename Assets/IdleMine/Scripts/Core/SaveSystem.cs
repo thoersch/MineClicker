@@ -21,6 +21,7 @@ namespace IdleMine
         public double lifetimeMoney;
         public long totalTaps;
         public int paragonLevel;
+        public long boostEndUtcTicks;
         public List<LayerSave> layers = new List<LayerSave>();
         public List<string> unlockedNodes = new List<string>();
         public long lastSaveUtcTicks;

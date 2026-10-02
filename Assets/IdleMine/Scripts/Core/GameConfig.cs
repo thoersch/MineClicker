@@ -74,6 +74,49 @@ namespace IdleMine
                  "and Dig Speed. Compounds: level 2 is this squared, level 3 cubed, etc.")]
         public double paragonMultiplierPerLevel = 0.25;
 
+        [Header("Ads: global rules")]
+        [Tooltip("Master switch. Off hides every ad offer (Foreman Pass rewards still work).")]
+        public bool adsEnabled = true;
+        [Tooltip("Minutes of play before any ad is offered, so new players get hooked on the game first.")]
+        public float adGraceMinutes = 6f;
+        [Tooltip("Most rewarded ads one player can watch per day, across all placements.")]
+        public int adDailyCap = 25;
+        [Tooltip("Ad rewards are 'N minutes of income'. Before the mine earns anything, income counts as this many taps per second.")]
+        public double rewardFloorTapsPerSecond = 2;
+
+        [Header("Ads: income boost")]
+        [Tooltip("Cash multiplier while a boost is running.")]
+        public double boostMultiplier = 2;
+        public float boostMinutesPerAd = 30f;
+        [Tooltip("Boosts stack up to this much time remaining.")]
+        public float boostMaxHours = 4f;
+
+        [Header("Ads: ore cart (random visitor)")]
+        public float cartMinIntervalSeconds = 240f;
+        public float cartMaxIntervalSeconds = 480f;
+        [Tooltip("Seconds the cart takes to roll across the screen. Miss it and it's gone.")]
+        public float cartLifetimeSeconds = 14f;
+        [Tooltip("Minutes of income for just tapping the cart.")]
+        public float cartFreeMinutes = 2f;
+        [Tooltip("Minutes of income for watching an ad instead.")]
+        public float cartAdMinutes = 15f;
+
+        [Header("Ads: motherlode chest")]
+        [Tooltip("Minutes of income from the chest that appears when you reach a Motherlode.")]
+        public float chestAdMinutes = 30f;
+        public float chestLifetimeSeconds = 60f;
+
+        [Header("Ads: skill assist")]
+        [Tooltip("Offer 'watch an ad to buy now' once you have at least this fraction of a skill's cost.")]
+        [Range(0f, 1f)] public float skillAssistThreshold = 0.7f;
+        public float skillAssistCooldownMinutes = 5f;
+
+        [Header("Foreman Pass (one-time purchase)")]
+        [Tooltip("Store product id. Must match the id set up in Google Play Console / App Store Connect.")]
+        public string foremanPassProductId = "foreman_pass_iap";
+        [Tooltip("Extra offline earnings while the pass is owned (+50% = 0.5).")]
+        public double foremanOfflineBonus = 0.5;
+
         [Header("Saving")]
         public float autosaveSeconds = 10f;
     }

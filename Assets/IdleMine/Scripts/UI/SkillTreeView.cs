@@ -61,6 +61,7 @@ namespace IdleMine
         float _openT, _refreshTimer;
 
         public bool IsOpen { get { return _open; } }
+        public SkillNode Selected { get { return _selected; } }
 
         // ================================================================== build (first open)
 

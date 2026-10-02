@@ -6,7 +6,9 @@ namespace IdleMine
     /// <summary>
     /// "Welcome back" modal. GameManager has already granted the cash; this just makes it feel like a reward.
     /// Watches for pending reports, so it also appears after the app resumes from the background.
-    /// The COLLECT button is wired to Collect() in the Inspector. A natural spot for a "watch ad for x2" button.
+    /// The COLLECT button is wired to Collect() in the Inspector, COLLECT x2 to CollectDouble(), which plays
+    /// a rewarded ad and pays the offline earnings a second time. The x2 button hides itself whenever no
+    /// ad can be offered, so the popup still works without ads.
     /// </summary>
     public class OfflinePopup : MonoBehaviour
     {
@@ -17,8 +19,13 @@ namespace IdleMine
         [SerializeField] Text moneyText;
         [SerializeField] Text layersText;
 
+        [Header("Watch ad for x2 (optional)")]
+        [SerializeField] AdManager ads;
+        [SerializeField] AdButtonView doubleButton;
+
         float _t = -1f;
-        bool _closing;
+        bool _closing, _doubled, _waitingForAd;
+        OfflineReport _report;
 
         void Update()
         {
@@ -33,6 +40,7 @@ namespace IdleMine
                 return;
             }
 
+            RefreshDouble();
             float dt = Time.unscaledDeltaTime;
             if (_closing)
             {
@@ -59,6 +67,11 @@ namespace IdleMine
             layersText.gameObject.SetActive(r.LayersGained > 0);
             layersText.text = "and dug " + r.LayersGained + " layer" + (r.LayersGained == 1 ? "" : "s") + " deeper";
 
+            _report = r;
+            _doubled = false;
+            _waitingForAd = false;
+            RefreshDouble();
+
             transform.SetAsLastSibling();
             dimGroup.gameObject.SetActive(true);
             dimGroup.alpha = 0f;
@@ -68,5 +81,32 @@ namespace IdleMine
         }
 
         public void Collect() { _closing = true; }
+
+        void RefreshDouble()
+        {
+            if (doubleButton == null) return;
+            bool show = ads != null && _report != null && !_closing && !_doubled
+                        && (_waitingForAd || ads.CanOffer(AdPlacement.OfflineDouble));
+            doubleButton.Visible = show;
+            if (!show) return;
+            doubleButton.Button.interactable = !_waitingForAd;
+            doubleButton.Set("COLLECT ×2", !ads.HasForemanPass);
+        }
+
+        /// <summary>Inspector-wired to COLLECT x2.</summary>
+        public void CollectDouble()
+        {
+            if (ads == null || _report == null || _doubled || _waitingForAd) return;
+            _waitingForAd = true;
+            ads.ShowRewarded(AdPlacement.OfflineDouble, ok =>
+            {
+                _waitingForAd = false;
+                if (!ok) return;
+                _doubled = true;
+                game.GrantMoney(_report.Money);
+                moneyText.text = NumberFormat.Money(_report.Money * 2);
+                Punch.Play(moneyText.transform, 0.35f, 0.4f);
+            });
+        }
     }
 }

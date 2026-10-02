@@ -1,0 +1,6 @@
+# app-ads.txt for Deepforge (10xGames)
+# Upload this file to the ROOT of the developer website listed on the App Store page,
+# e.g. https://<your-domain>/app-ads.txt (not in a subfolder). AdMob crawls it to confirm
+# that ad inventory sold for this app is really yours.
+#
+google.com, pub-3985317207511475, DIRECT, f08c47fec0942fa0

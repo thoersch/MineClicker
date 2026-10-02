@@ -64,6 +64,23 @@ namespace IdleMine
 
         public bool CanAscend { get { return AvailableParagonLevels > 0; } }
 
+        /// <summary>UTC ticks when the ad-bought income boost runs out (0 = never bought). It's wall-clock
+        /// time, so a boost keeps running (and boosting offline earnings) while the player is away.</summary>
+        public long BoostEndUtcTicks { get; private set; }
+        public bool BoostActive { get { return _boostApplied; } }
+        public double BoostSecondsLeft { get { return Math.Max(0, (BoostEndUtcTicks - DateTime.UtcNow.Ticks) / (double)TimeSpan.TicksPerSecond); } }
+        public bool CanExtendBoost { get { return BoostSecondsLeft + Config.boostMinutesPerAd * 60.0 <= Config.boostMaxHours * 3600.0 + 1.0; } }
+
+        /// <summary>Income without the temporary boost. Ad rewards are sized from this so a boost doesn't double them too.</summary>
+        public double BaseIncomePerSecond { get { return IncomePerSecond / BoostFactor; } }
+
+        /// <summary>Owns the one-time Foreman Pass purchase (cached locally by MonetizationStore).</summary>
+        public bool ForemanPass { get; private set; }
+
+        /// <summary>Set while a full-screen ad is up. Mobile OSes pause the app behind an ad, and a 30 s ad
+        /// would otherwise come back to a "Welcome back" popup.</summary>
+        public bool SuppressOfflineProgress { get; set; }
+
         public int TotalMiners { get { return (int)Math.Floor(Stats.Get(StatType.MinerCount) + 1e-6); } }
         public int FreeMiners { get { return Math.Max(0, TotalMiners - AssignedMiners); } }
         public int SlotsPerLayer { get { return (int)Math.Floor(Stats.Get(StatType.LayerSlots) + 1e-6); } }
@@ -81,7 +98,7 @@ namespace IdleMine
         double _digSpeed, _critChance, _critMult, _autoTapRate;
         double _autoTapAccum;
         float _saveTimer;
-        bool _initialized;
+        bool _initialized, _boostApplied;
         long _pausedAtTicks;
         readonly List<int> _order = new List<int>();
 
@@ -108,6 +125,7 @@ namespace IdleMine
             Config = cfg;
             Stats = new StatBlock();
             Tree = SkillTreeGenerator.Generate(cfg);
+            ForemanPass = MonetizationStore.Data.foremanPass;
 
             var save = SaveSystem.Load();
             if (save != null) ApplySave(save);
@@ -115,6 +133,7 @@ namespace IdleMine
 
             _initialized = true;
             if (save != null) SimulateOffline(save.lastSaveUtcTicks);
+            SyncBoost();
         }
 
         /// <summary>Resets money, miners and the skill tree back to a fresh start. Used both for a brand
@@ -152,6 +171,7 @@ namespace IdleMine
         void Update()
         {
             if (!_initialized) return;
+            SyncBoost();
             Tick(Time.deltaTime, true);
 
             _saveTimer += Time.unscaledDeltaTime;
@@ -361,6 +381,52 @@ namespace IdleMine
             return true;
         }
 
+        // ================================================================== ad & purchase rewards
+
+        /// <summary>Instant cash from a reward. Counts as earnings, like offline income does.</summary>
+        public void GrantMoney(double amount)
+        {
+            if (amount <= 0) return;
+            Money += amount;
+            LifetimeMoney += amount;
+        }
+
+        /// <summary>What N minutes of (unboosted) income is worth right now. Rewards are sized this way so they
+        /// stay meaningful at every stage; before the mine earns anything it falls back to steady tapping.</summary>
+        public double IncomeForMinutes(double minutes)
+        {
+            var top = Layers[0];
+            double tapping = Config.rewardFloorTapsPerSecond * top.OrePerTap * top.ValuePerOre / BoostFactor;
+            return Math.Max(BaseIncomePerSecond, tapping) * minutes * 60.0;
+        }
+
+        /// <summary>Adds boost time on top of whatever is left, capped at boostMaxHours remaining.</summary>
+        public void AddBoost(double seconds)
+        {
+            long now = DateTime.UtcNow.Ticks;
+            long end = Math.Max(now, BoostEndUtcTicks) + (long)(seconds * TimeSpan.TicksPerSecond);
+            BoostEndUtcTicks = Math.Min(end, now + (long)(Config.boostMaxHours * 3600.0 * TimeSpan.TicksPerSecond));
+            SyncBoost();
+            Save();
+        }
+
+        public void SetForemanPass(bool owned)
+        {
+            if (ForemanPass == owned) return;
+            ForemanPass = owned;
+            RecalculateStats();
+        }
+
+        double BoostFactor { get { return _boostApplied ? Math.Max(1e-9, Config.boostMultiplier) : 1.0; } }
+
+        void SyncBoost()
+        {
+            bool on = BoostEndUtcTicks > DateTime.UtcNow.Ticks;
+            if (on == _boostApplied) return;
+            _boostApplied = on;
+            RecalculateStats();
+        }
+
         // ================================================================== derived numbers
 
         void RecalculateStats()
@@ -381,6 +447,9 @@ namespace IdleMine
                 Stats.Apply(new SkillEffect(StatType.TapPower, ModOp.Multiply, paragonMult));
                 Stats.Apply(new SkillEffect(StatType.DigSpeed, ModOp.Multiply, paragonMult));
             }
+            // Same for the ad boost and the Foreman Pass perk, which live outside the tree.
+            if (_boostApplied) Stats.Apply(new SkillEffect(StatType.OreValue, ModOp.Multiply, Config.boostMultiplier));
+            if (ForemanPass) Stats.Apply(new SkillEffect(StatType.OfflineEfficiency, ModOp.Percent, Config.foremanOfflineBonus));
 
             _digSpeed = Stats.Get(StatType.DigSpeed);
             _critChance = Stats.Get(StatType.CritChance);
@@ -478,6 +547,7 @@ namespace IdleMine
                 lifetimeMoney = LifetimeMoney,
                 totalTaps = TotalTaps,
                 paragonLevel = ParagonLevel,
+                boostEndUtcTicks = BoostEndUtcTicks,
                 lastSaveUtcTicks = DateTime.UtcNow.Ticks,
             };
             foreach (var l in Layers) d.layers.Add(new LayerSave { progress = l.Progress, miners = l.Miners });
@@ -492,6 +562,7 @@ namespace IdleMine
             LifetimeMoney = s.lifetimeMoney;
             TotalTaps = s.totalTaps;
             ParagonLevel = s.paragonLevel;
+            BoostEndUtcTicks = s.boostEndUtcTicks;
 
             Tree.ResetOwnership();
             foreach (var id in s.unlockedNodes)
@@ -526,9 +597,19 @@ namespace IdleMine
             double moneyBefore = Money;
             int depthBefore = Depth;
 
-            // Chunked so breakthroughs part-way through let free miners move deeper.
+            // The boost is wall-clock, so only the part of the absence it covered gets it: those steps run first.
             const int steps = 120;
-            for (int i = 0; i < steps; i++) Tick(effective / steps, false);
+            double boostedSeconds = Math.Min(capped, Math.Max(0, (BoostEndUtcTicks - lastSaveTicks) / (double)TimeSpan.TicksPerSecond));
+            int boostedSteps = (int)Math.Round(steps * boostedSeconds / capped);
+
+            // Chunked so breakthroughs part-way through let free miners move deeper.
+            for (int i = 0; i < steps; i++)
+            {
+                bool boosted = i < boostedSteps;
+                if (boosted != _boostApplied) { _boostApplied = boosted; RecalculateStats(); }
+                Tick(effective / steps, false);
+            }
+            SyncBoost();
             foreach (var l in Layers) l.PendingIncome = 0;
 
             var report = new OfflineReport
@@ -560,7 +641,7 @@ namespace IdleMine
             }
             else if (_pausedAtTicks > 0)
             {
-                SimulateOffline(_pausedAtTicks);
+                if (!SuppressOfflineProgress) SimulateOffline(_pausedAtTicks);
                 _pausedAtTicks = 0;
             }
         }
@@ -579,8 +660,9 @@ namespace IdleMine
         void DebugWipe()
         {
             SaveSystem.Delete();
+            MonetizationStore.Delete();
             _initialized = false; // stop the quit-save from rewriting it
-            Debug.Log("[IdleMine] Save wiped. Stop and re-enter Play mode.");
+            Debug.Log("[IdleMine] Save (and ad/purchase state) wiped. Stop and re-enter Play mode.");
         }
     }
 }

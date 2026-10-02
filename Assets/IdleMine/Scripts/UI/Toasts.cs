@@ -3,7 +3,8 @@ using UnityEngine.UI;
 
 namespace IdleMine
 {
-    /// <summary>Banner that drops in when you break through to a new depth.</summary>
+    /// <summary>Banner that drops in when you break through to a new depth. Other views can raise their
+    /// own messages through Show.</summary>
     public class Toasts : MonoBehaviour
     {
         [SerializeField] GameManager game;
@@ -33,19 +34,24 @@ namespace IdleMine
 
         void OnLayerUnlocked(MineLayer l)
         {
-            titleText.text = l.IsMotherlode ? "MOTHERLODE AT DEPTH " + l.Index + "!" : "DEPTH " + l.Index + " REACHED!";
-            subtitleText.text = LayerCatalog.BandName(l.Index) + "  \u00B7  " + LayerCatalog.OreName(l.Index) + " ore  \u00B7  " + NumberFormat.Money(l.ValuePerOre) + " each";
-            bannerImage.color = Color.Lerp(Palette.Layer(l.Index), Palette.Panel, 0.35f);
-            banner.gameObject.SetActive(true);
-            _t = 0f;
-            Punch.Play(titleText.transform, 0.2f, 0.35f);
+            Show(l.IsMotherlode ? "MOTHERLODE AT DEPTH " + l.Index + "!" : "DEPTH " + l.Index + " REACHED!",
+                 LayerCatalog.BandName(l.Index) + "  \u00B7  " + LayerCatalog.OreName(l.Index) + " ore  \u00B7  " + NumberFormat.Money(l.ValuePerOre) + " each",
+                 Palette.Layer(l.Index));
         }
 
         void OnAscended(int levelsGained)
         {
-            titleText.text = "PARAGON " + game.ParagonLevel + "!";
-            subtitleText.text = "Mine reset  \u00B7  now " + NumberFormat.Multiplier(game.ParagonMultiplier) + " stronger, permanently";
-            bannerImage.color = Color.Lerp(Palette.Gold, Palette.Panel, 0.35f);
+            Show("PARAGON " + game.ParagonLevel + "!",
+                 "Mine reset  \u00B7  now " + NumberFormat.Multiplier(game.ParagonMultiplier) + " stronger, permanently",
+                 Palette.Gold);
+        }
+
+        /// <summary>Drops the banner in with any message (also used for ad rewards and purchase results).</summary>
+        public void Show(string title, string subtitle, Color tint)
+        {
+            titleText.text = title;
+            subtitleText.text = subtitle;
+            bannerImage.color = Color.Lerp(tint, Palette.Panel, 0.35f);
             banner.gameObject.SetActive(true);
             _t = 0f;
             Punch.Play(titleText.transform, 0.2f, 0.35f);

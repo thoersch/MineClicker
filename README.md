@@ -111,12 +111,58 @@ The project uses the classic Input Manager with `StandaloneInputModule`. All gam
 
 The only direct `Input` call is the Android back button closing the tree, and it compiles out automatically when the legacy input handler is disabled.
 
+## Ads & purchases
+
+Rewarded ads only, always opt-in: no banners and no forced interstitials. Each ad button shows an "AD" tag so a player knows before tapping that a video will play. A button hides itself when no ad is loaded, when a cooldown is running, or once the daily cap is reached.
+
+| Placement | Where | Reward |
+|---|---|---|
+| `OfflineDouble` | "Welcome back" popup: COLLECT ×2 | The offline earnings again |
+| `IncomeBoost` | HUD, top right | ×2 cash for 30 min, stacking to 4 h. It keeps running while the player is away. |
+| `OreCart` | Rolls across the mine every 4 to 8 min | Tap for 2 min of income, or watch an ad for 15 min of income |
+| `MotherlodeChest` | Appears after reaching a Motherlode | 30 min of income |
+| `SkillAssist` | Skill tree details sheet, when you have at least 70% of a skill's cost | Covers the rest and buys the skill (5 min cooldown) |
+
+Rewards are sized as "minutes of income", so they stay meaningful at every stage. New players see no ads for their first 6 minutes of play, and there's a cap of 25 ads per day. Every number is in `GameConfig.asset` under **Ads**.
+
+The **Foreman Pass** is a one-time purchase. It makes every ad reward instant and adds +50% offline earnings. Players reach it from the PASS button on the HUD (hidden once owned) or the "No ads?" link on any offer. The entitlement is cached in its own file (`idlemine_monetization.json`), so wiping or corrupting the game save never removes something the player paid for.
+
+**Install the UI once:** open `Main.unity`, click **Idle Mine > Monetization > Install UI In Open Scene**, then save the scene. The menu item adds the `AdManager` object, the offer and pass popups, the HUD boost and PASS buttons, the cart/chest visitor, the skill assist button and the ×2 offline button. It also wires every reference. After that it's ordinary scene UI you can restyle.
+
+**How it's wired:**
+
+* `Monetization/AdManager` is the single gatekeeper. Views call `CanOffer(placement)` and `ShowRewarded(placement, ok => ...)`.
+  * It enforces the grace period, the daily cap and cooldowns.
+  * It skips the video for pass owners.
+  * It tells `GameManager` to ignore the app-pause that an ad causes. Otherwise a 30 s ad would return to a "Welcome back" popup.
+* The ad network and store sit behind `IRewardedAdService` / `IPurchaseService`. Which ones run:
+  * **Editor and development builds:** a fake full-screen **TEST AD** with a countdown, and a store where every purchase succeeds. Lower *Mock Fill Rate* on AdManager to test the "no ad available" path.
+  * **Release builds:** real SDKs once their scripting defines are set (see below), otherwise none at all. Without an SDK, no ad buttons appear.
+
+**Turning on the real SDKs (iOS):**
+
+`Packages/manifest.json` already includes **Google Mobile Ads** 11.5.0 (from OpenUPM) and **Unity IAP** 5.4.3.
+
+1. Click **Idle Mine > Monetization > Set Up iOS SDKs**. It:
+   * adds the `IDLEMINE_ADMOB;IDLEMINE_UNITY_IAP` scripting defines for iOS;
+   * fills in the AdMob iOS app id (Google's test id until you replace it) and the App Tracking Transparency prompt text in *Assets > Google Mobile Ads > Settings*.
+2. Put your real AdMob **app id** in *Assets > Google Mobile Ads > Settings*, and your rewarded **ad unit** id in the iOS field on the `AdManager` object. Until then, both are Google's test ids, which always fill and never pay.
+3. Create a non-consumable in-app purchase with id `foreman_pass_iap` (configurable in GameConfig) in App Store Connect.
+4. In the AdMob console, create the GDPR consent message and the iOS IDFA (ATT) explainer under *Privacy & messaging*. The game shows Google's consent form before the first ad request when it's required.
+5. Fill in your publisher id in `app-ads.txt` (project root) and upload it to the root of the developer website on your App Store listing.
+
+The Google plugin adds Apple's SKAdNetwork ids to the Xcode project automatically. Building for iOS needs a Mac with Xcode, or a cloud build service.
+
 ## Debugging
 
 * Right-click the **GameManager** component header in Play mode for:
   * **Debug/Add 1000x current money**
-  * **Debug/Wipe save and restart**
-* The save file is `idlemine_save.json` in `Application.persistentDataPath`.
+  * **Debug/Wipe save and restart** (also wipes ad caps and the cached Foreman Pass)
+* Right-click the **AdManager** component header for:
+  * **Debug/Toggle Foreman Pass**
+  * **Debug/Reset ad caps and cooldowns**
+* In the editor, *Ignore Grace And Cap In Editor* (on AdManager, on by default) lets you test ads immediately. Turn it off to see what a new player sees.
+* The save file is `idlemine_save.json` in `Application.persistentDataPath`. Ad and purchase state is in `idlemine_monetization.json` next to it.
 
 ## Notes
 
