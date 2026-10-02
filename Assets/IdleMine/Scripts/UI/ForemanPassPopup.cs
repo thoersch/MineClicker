@@ -81,7 +81,7 @@ namespace IdleMine
             {
                 _busy = false;
                 statusText.text = ok ? "" : "Purchase didn't go through. You haven't been charged.";
-                if (ok) Punch.Play(card, 0.2f, 0.4f);
+                if (ok) { Punch.Play(card, 0.2f, 0.4f); AudioManager.Play(Sfx.Reward); }
             });
         }
 

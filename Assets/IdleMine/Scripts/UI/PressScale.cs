@@ -3,13 +3,21 @@ using UnityEngine.EventSystems;
 
 namespace IdleMine
 {
-    /// <summary>Squashes a button slightly while held. Cheap tactile feedback that makes every press feel good.</summary>
+    /// <summary>Squashes a button slightly while held and plays the click sound. Cheap tactile feedback that makes
+    /// every press feel good.</summary>
     public class PressScale : MonoBehaviour, IPointerDownHandler, IPointerUpHandler, IPointerExitHandler
     {
         public float pressedScale = 0.93f;
         float _target = 1f, _current = 1f;
 
-        public void OnPointerDown(PointerEventData e) { _target = pressedScale; enabled = true; }
+        public void OnPointerDown(PointerEventData e)
+        {
+            _target = pressedScale;
+            enabled = true;
+            // A disabled button (e.g. BUY when you can't afford it) answers with a soft "nope".
+            var b = GetComponent<UnityEngine.UI.Selectable>();
+            AudioManager.Play(b == null || b.interactable ? Sfx.Click : Sfx.Deny);
+        }
         public void OnPointerUp(PointerEventData e) { _target = 1f; enabled = true; }
         public void OnPointerExit(PointerEventData e) { _target = 1f; enabled = true; }
 

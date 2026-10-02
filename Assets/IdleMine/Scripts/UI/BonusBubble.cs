@@ -78,6 +78,7 @@ namespace IdleMine
             bubble.gameObject.SetActive(true);
             Position();
             Punch.Play(bubble, 0.3f, 0.4f);
+            AudioManager.Play(Sfx.Cart);
         }
 
         void Despawn()
@@ -165,6 +166,7 @@ namespace IdleMine
         void Pay(double amount, Vector2 at)
         {
             game.GrantMoney(amount);
+            AudioManager.Play(Sfx.Coins);
             fx.SpawnChips(at, Palette.Gold, 24);
             fx.SpawnText(at + new Vector2(0, 60), "+" + NumberFormat.Money(amount), Palette.Gold, 64, 1.5f, 220f);
         }

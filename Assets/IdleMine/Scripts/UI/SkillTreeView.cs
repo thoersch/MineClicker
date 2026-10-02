@@ -194,6 +194,7 @@ namespace IdleMine
             if (_selected == v.Node && game.CanPurchase(v.Node)) { Buy(); return; }
             Select(v.Node);
             Punch.Play(v.Visual, 0.12f, 0.2f);
+            AudioManager.Play(Sfx.Click);
         }
 
         void Select(SkillNode n)

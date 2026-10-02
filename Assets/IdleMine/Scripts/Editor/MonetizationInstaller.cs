@@ -4,6 +4,7 @@ using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.UI;
+using static IdleMine.EditorTools.UiKit;
 
 namespace IdleMine.EditorTools
 {
@@ -15,18 +16,11 @@ namespace IdleMine.EditorTools
     /// </summary>
     public static class MonetizationInstaller
     {
-        const string ArtRoot = "Assets/IdleMine/Art/";
-
-        static Font _font;
-        static Sprite _rounded, _circle, _ring;
 
         [MenuItem("Idle Mine/Monetization/Install UI In Open Scene")]
         public static void Install()
         {
-            _font = AssetDatabase.LoadAssetAtPath<Font>(ArtRoot + "Fonts/LilitaOne-Regular.ttf");
-            _rounded = AssetDatabase.LoadAssetAtPath<Sprite>(ArtRoot + "Sprites/Rounded.png");
-            _circle = AssetDatabase.LoadAssetAtPath<Sprite>(ArtRoot + "Sprites/Circle.png");
-            _ring = AssetDatabase.LoadAssetAtPath<Sprite>(ArtRoot + "Sprites/Ring.png");
+            UiKit.LoadAssets();
 
             var game = Object.FindObjectOfType<GameManager>(true);
             var safeArea = Object.FindObjectOfType<SafeArea>(true);
@@ -110,7 +104,7 @@ namespace IdleMine.EditorTools
             body.horizontalOverflow = HorizontalWrapMode.Wrap;
             body.rectTransform.sizeDelta = new Vector2(-100, 130);
             var glow = Node("Glow", card, new Vector2(0.5f, 1), new Vector2(0.5f, 1), new Vector2(0.5f, 0.5f), new Vector2(0, -380), new Vector2(170, 170));
-            Img(glow, _circle, Palette.WithAlpha(Palette.Gold, 0.18f), false);
+            Img(glow, Circle, Palette.WithAlpha(Palette.Gold, 0.18f), false);
             var reward = Label("Reward", card, "$1.23M", 84, Palette.Gold, Centered(new Vector2(0, -380), new Vector2(800, 110), 1), true);
             var status = Label("Status", card, "", 28, Palette.Orange, TopRow(-470, 44), false);
 
@@ -207,11 +201,11 @@ namespace IdleMine.EditorTools
             var bubbles = root.gameObject.AddComponent<BonusBubble>();
 
             var bubble = Node("Bubble", root, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(180, 180));
-            var img = Img(bubble, _circle, Palette.Gold, false);
+            var img = Img(bubble, Circle, Palette.Gold, false);
             var button = MakeButton(bubble.gameObject, img);
             Wire(button, bubbles.Tapped);
             var ring = Node("Ring", bubble, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(204, 204));
-            Img(ring, _ring, Palette.WithAlpha(Color.white, 0.7f), false).raycastTarget = false;
+            Img(ring, Ring, Palette.WithAlpha(Color.white, 0.7f), false).raycastTarget = false;
             var label = Label("Label", bubble, "ORE\nCART", 40, Palette.Panel, Fill(), false);
             label.lineSpacing = 0.85f;
 
@@ -262,152 +256,6 @@ namespace IdleMine.EditorTools
             Set(offline, "ads", ads);
             Set(offline, "doubleButton", view);
             return true;
-        }
-
-        // ================================================================== building blocks
-
-        struct Layout
-        {
-            public Vector2 AnchorMin, AnchorMax, Pivot, Pos, Size;
-        }
-
-        static Layout TopRow(float y, float height)
-        {
-            return new Layout { AnchorMin = new Vector2(0, 1), AnchorMax = new Vector2(1, 1), Pivot = new Vector2(0.5f, 1), Pos = new Vector2(0, y), Size = new Vector2(0, height) };
-        }
-
-        static Layout Bottom(float y, Vector2 size)
-        {
-            return new Layout { AnchorMin = new Vector2(0.5f, 0), AnchorMax = new Vector2(0.5f, 0), Pivot = new Vector2(0.5f, 0), Pos = new Vector2(0, y), Size = size };
-        }
-
-        static Layout Centered(Vector2 pos, Vector2 size, float anchorY)
-        {
-            return new Layout { AnchorMin = new Vector2(0.5f, anchorY), AnchorMax = new Vector2(0.5f, anchorY), Pivot = new Vector2(0.5f, 0.5f), Pos = pos, Size = size };
-        }
-
-        static Layout Fill()
-        {
-            return new Layout { AnchorMin = Vector2.zero, AnchorMax = Vector2.one, Pivot = new Vector2(0.5f, 0.5f) };
-        }
-
-        static RectTransform Node(string name, Transform parent, Vector2 aMin, Vector2 aMax, Vector2 pivot, Vector2 pos, Vector2 size)
-        {
-            var go = new GameObject(name, typeof(RectTransform));
-            go.layer = 5; // UI
-            Undo.RegisterCreatedObjectUndo(go, "Install monetization");
-            var rt = (RectTransform)go.transform;
-            rt.SetParent(parent, false);
-            Place(rt, aMin, aMax, pivot, pos, size);
-            return rt;
-        }
-
-        static RectTransform Node(string name, Transform parent, Layout l)
-        {
-            return Node(name, parent, l.AnchorMin, l.AnchorMax, l.Pivot, l.Pos, l.Size);
-        }
-
-        static RectTransform Stretch(string name, Transform parent)
-        {
-            return Node(name, parent, Fill());
-        }
-
-        static void Place(Transform t, Vector2 aMin, Vector2 aMax, Vector2 pivot, Vector2 pos, Vector2 size)
-        {
-            var rt = (RectTransform)t;
-            rt.anchorMin = aMin;
-            rt.anchorMax = aMax;
-            rt.pivot = pivot;
-            rt.anchoredPosition = pos;
-            rt.sizeDelta = size;
-        }
-
-        static RectTransform Card(Transform parent, Vector2 size)
-        {
-            var card = Node("Card", parent, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, size);
-            Img(card, _rounded, Palette.Panel, true);
-            return card;
-        }
-
-        static Image Img(RectTransform rt, Sprite sprite, Color color, bool sliced)
-        {
-            var img = rt.gameObject.AddComponent<Image>();
-            img.sprite = sprite;
-            img.type = sliced ? Image.Type.Sliced : Image.Type.Simple;
-            img.color = color;
-            return img;
-        }
-
-        static Text Label(string name, Transform parent, string text, int size, Color color, Layout l, bool shadow)
-        {
-            var rt = Node(name, parent, l);
-            var t = rt.gameObject.AddComponent<Text>();
-            t.font = _font;
-            t.fontSize = size;
-            t.color = color;
-            t.alignment = TextAnchor.MiddleCenter;
-            t.horizontalOverflow = HorizontalWrapMode.Overflow;
-            t.verticalOverflow = VerticalWrapMode.Overflow;
-            t.supportRichText = true;
-            t.raycastTarget = false;
-            t.text = text;
-            if (shadow)
-            {
-                var s = rt.gameObject.AddComponent<Shadow>();
-                s.effectColor = new Color(0, 0, 0, 0.55f);
-                s.effectDistance = new Vector2(0, -3);
-            }
-            return t;
-        }
-
-        static Button MakeButton(GameObject go, Image target)
-        {
-            var b = go.AddComponent<Button>();
-            b.targetGraphic = target;
-            var c = b.colors;
-            c.pressedColor = new Color(0.8f, 0.8f, 0.8f, 1f);
-            c.disabledColor = new Color(0.55f, 0.55f, 0.55f, 0.8f);
-            c.fadeDuration = 0.06f;
-            b.colors = c;
-            go.AddComponent<PressScale>();
-            return b;
-        }
-
-        static Button PlainButton(string name, Transform parent, string text, Color bg, Color fg, Layout? l, int fontSize)
-        {
-            var rt = l.HasValue ? Node(name, parent, l.Value) : Node(name, parent, Fill());
-            var img = Img(rt, _rounded, bg, true);
-            var b = MakeButton(rt.gameObject, img);
-            Label("Label", rt, text, fontSize, fg, Fill(), false);
-            return b;
-        }
-
-        static AdButtonView AdButton(string name, Transform parent, string text, Color bg, Layout? l, int fontSize)
-        {
-            var b = PlainButton(name, parent, text, bg, Palette.Panel, l, fontSize);
-            var tag = Node("Ad Tag", b.transform, new Vector2(1, 1), new Vector2(1, 1), new Vector2(0.5f, 0.5f), new Vector2(-22, -8), new Vector2(78, 46));
-            Img(tag, _rounded, Palette.Panel, true).raycastTarget = false;
-            Label("Label", tag, "AD", 28, Palette.Gold, Fill(), false);
-
-            var view = b.gameObject.AddComponent<AdButtonView>();
-            Set(view, "button", b);
-            Set(view, "label", b.transform.Find("Label").GetComponent<Text>());
-            Set(view, "adTag", tag.gameObject);
-            return view;
-        }
-
-        static void Wire(Button b, UnityAction action)
-        {
-            UnityEventTools.AddPersistentListener(b.onClick, action);
-        }
-
-        static void Set(Object target, string field, Object value)
-        {
-            var so = new SerializedObject(target);
-            var p = so.FindProperty(field);
-            if (p == null) { Debug.LogError("[IdleMine] " + target.GetType().Name + " has no field '" + field + "'."); return; }
-            p.objectReferenceValue = value;
-            so.ApplyModifiedPropertiesWithoutUndo();
         }
     }
 }

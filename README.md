@@ -153,6 +153,36 @@ The **Foreman Pass** is a one-time purchase. It makes every ad reward instant an
 
 The Google plugin adds Apple's SKAdNetwork ids to the Xcode project automatically. Building for iOS needs a Mac with Xcode, or a cloud build service.
 
+## Audio
+
+**Install once:** open `Main.unity`, click **Idle Mine > Audio > Install In Open Scene**, then save the scene. The menu item adds:
+* an `Audio` object holding `AudioManager` (every clip, with its volume, pitch variation and repeat limit) and `GameAudio`;
+* a gear button in the HUD;
+* the settings popup, with Music and Sound on/off and Restore purchases.
+
+**How it works:**
+* Anything can call `AudioManager.Play(Sfx.X)`.
+* `GameAudio` turns game events into sounds:
+  * a tap digs, and a crit clangs; auto-taps stay silent;
+  * a new layer rumbles open, and a Motherlode shimmers;
+  * a skill purchase pops, and a keystone chimes;
+  * ascending swells;
+  * ad and Foreman Pass rewards sparkle.
+* `PressScale` clicks on every button press and plays a soft "nope" on disabled ones.
+* Coins, the ore cart and the pass purchase call `Play` directly.
+* Music fades in and out, and the on/off choices are remembered per device in PlayerPrefs.
+* Ads pause all audio.
+
+**The clips** in `Assets/IdleMine/Audio` were synthesized for this game, so there are no licensing strings attached. `Editor/AudioImportSettings.cs` imports them for mobile: effects are decompressed into memory, and the music streams as Vorbis. To swap a sound, replace the `.wav` with the same name, or assign new clips on the `AudioManager` component.
+
+## iOS builds (GitHub Actions)
+
+`.github/workflows/ios-app-store.yml` builds the game and uploads it to App Store Connect, where it appears in TestFlight. Start it from **Actions > iOS build to App Store Connect > Run workflow**, or by pushing a tag such as `v1.0.0`.
+
+* A Linux runner exports the Xcode project with Unity (GameCI), using `Editor/CiBuild.cs`. This raises the minimum iOS version to 15.0 if it's lower, because Unity IAP 5 needs StoreKit 2.
+* A macOS runner then runs `pod install`, signs the app automatically with the App Store Connect API key, and uploads it. The workflow's run number becomes the build number.
+* The required repository secrets are listed at the top of the workflow file.
+
 ## Debugging
 
 * Right-click the **GameManager** component header in Play mode for:

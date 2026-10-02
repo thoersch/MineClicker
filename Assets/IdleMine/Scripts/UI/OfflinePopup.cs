@@ -80,7 +80,11 @@ namespace IdleMine
             _t = 0f;
         }
 
-        public void Collect() { _closing = true; }
+        public void Collect()
+        {
+            if (!_closing) AudioManager.Play(Sfx.Coins);
+            _closing = true;
+        }
 
         void RefreshDouble()
         {
@@ -106,6 +110,7 @@ namespace IdleMine
                 game.GrantMoney(_report.Money);
                 moneyText.text = NumberFormat.Money(_report.Money * 2);
                 Punch.Play(moneyText.transform, 0.35f, 0.4f);
+                AudioManager.Play(Sfx.Coins);
             });
         }
     }
