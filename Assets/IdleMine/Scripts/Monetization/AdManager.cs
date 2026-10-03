@@ -150,6 +150,25 @@ namespace IdleMine
             }
         }
 
+        /// <summary>Why ads are or aren't being offered right now, for the readout in Settings.</summary>
+        public string StatusText
+        {
+            get
+            {
+                var cfg = game.Config;
+                if (HasForemanPass) return "Foreman Pass: rewards are instant";
+                if (!cfg.adsEnabled) return "Ads turned off in GameConfig";
+                string net = _ads.Status;
+                if (!IgnoreLimits)
+                {
+                    double grace = cfg.adGraceMinutes * 60.0 - MonetizationStore.Data.playSeconds;
+                    if (grace > 0) return "Unlock after " + NumberFormat.Time(grace) + " more play (" + net + ")";
+                    if (AdsToday >= cfg.adDailyCap) return "Daily limit reached (" + cfg.adDailyCap + ")";
+                }
+                return net;
+            }
+        }
+
         // ================================================================== showing
 
         /// <summary>Shows a rewarded ad (or skips it for pass owners) and calls back true if the reward should

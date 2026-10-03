@@ -4,8 +4,8 @@ using UnityEngine.UI;
 namespace IdleMine
 {
     /// <summary>
-    /// Small settings card opened from the gear button in the HUD: music and sound on/off, plus Restore
-    /// Purchases. Its GameObject starts inactive in the scene. Buttons are wired in the Inspector:
+    /// Small settings card opened from the gear button in the HUD: music and sound on/off, Restore
+    /// Purchases, and a version line that also shows why ads are or aren't being offered (handy on TestFlight). Its GameObject starts inactive in the scene. Buttons are wired in the Inspector:
     /// Gear -> Open, Close -> Close, Music -> ToggleMusic, Sound -> ToggleSound, Restore -> Restore.
     /// </summary>
     public class SettingsPopup : MonoBehaviour
@@ -19,12 +19,15 @@ namespace IdleMine
         [SerializeField] Text statusText;
         [SerializeField] Text versionText;
 
+        float _statusTimer;
+
         public void Open()
         {
             gameObject.SetActive(true);
             transform.SetAsLastSibling();
             statusText.text = "";
-            versionText.text = "Version " + Application.version;
+            versionText.horizontalOverflow = HorizontalWrapMode.Wrap; // ad errors can be long
+            _statusTimer = 0f;
             Punch.Play(card, 0.15f, 0.3f);
             Refresh();
         }
@@ -36,6 +39,10 @@ namespace IdleMine
 #if ENABLE_LEGACY_INPUT_MANAGER
             if (Input.GetKeyDown(KeyCode.Escape)) Close(); // Android back button
 #endif
+            _statusTimer -= Time.unscaledDeltaTime;
+            if (_statusTimer > 0f) return;
+            _statusTimer = 0.5f;
+            versionText.text = "Version " + Application.version + (ads != null ? "\n<size=22>Ads: " + ads.StatusText + "</size>" : "");
         }
 
         public void ToggleMusic()

@@ -24,6 +24,8 @@ namespace IdleMine
         /// <summary>An ad is loaded and can be shown right now.</summary>
         bool IsReady { get; }
         void Show(AdPlacement placement, Action<AdResult> done);
+        /// <summary>One line for the diagnostics readout in Settings, e.g. "Ready" or "No fill (code 3)".</summary>
+        string Status { get; }
     }
 
     /// <summary>Release builds with no ad SDK compiled in: no ads are ever offered.</summary>
@@ -32,6 +34,7 @@ namespace IdleMine
         public void Initialize() { }
         public bool IsReady { get { return false; } }
         public void Show(AdPlacement placement, Action<AdResult> done) { done(AdResult.Failed); }
+        public string Status { get { return "No ad SDK in this build"; } }
     }
 
     /// <summary>One-time / consumable store purchases (Google Play, App Store).</summary>

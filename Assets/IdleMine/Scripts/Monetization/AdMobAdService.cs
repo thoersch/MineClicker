@@ -22,8 +22,11 @@ namespace IdleMine
         readonly string _unitId;
         readonly MonoBehaviour _host;
         RewardedAd _ad;
-        bool _started, _loading;
+        bool _started, _loading, _showing;
         float _retryDelay = 2f;
+        string _status = "Not started";
+
+        public string Status { get { return _showing ? "Showing" : IsReady ? "Ready" : _status; } }
 
         public AdMobAdService(string unitId, MonoBehaviour host)
         {
@@ -38,18 +41,25 @@ namespace IdleMine
             if (string.IsNullOrEmpty(_unitId))
             {
                 Debug.LogWarning("[IdleMine] AdMob: no rewarded ad unit id set on AdManager for this platform.");
+                _status = "No ad unit id set";
                 return;
             }
 
             // Consent from a previous session lets ads start immediately while the update runs.
+            _status = "Checking consent";
             if (ConsentInformation.CanRequestAds()) StartSdk();
             ConsentInformation.Update(new ConsentRequestParameters(), updateError => OnMain(() =>
             {
-                if (updateError != null) Debug.LogWarning("[IdleMine] Consent update failed: " + updateError.Message);
+                if (updateError != null)
+                {
+                    Debug.LogWarning("[IdleMine] Consent update failed: " + updateError.Message);
+                    if (!_started) _status = "Consent check failed: " + updateError.Message;
+                }
                 ConsentForm.LoadAndShowConsentFormIfRequired(formError => OnMain(() =>
                 {
                     if (formError != null) Debug.LogWarning("[IdleMine] Consent form failed: " + formError.Message);
                     if (ConsentInformation.CanRequestAds()) StartSdk();
+                    else if (!_started) _status = formError != null ? "Consent form failed: " + formError.Message : "No consent to request ads";
                 }));
             }));
         }
@@ -58,6 +68,7 @@ namespace IdleMine
         {
             if (_started) return;
             _started = true;
+            _status = "Starting AdMob";
             MobileAds.Initialize(status => OnMain(Load));
         }
 
@@ -65,12 +76,15 @@ namespace IdleMine
         {
             if (_loading || _ad != null) return;
             _loading = true;
+            _status = "Loading ad";
             RewardedAd.Load(_unitId, new AdRequest(), (RewardedAd ad, LoadAdError error) => OnMain(() =>
             {
                 _loading = false;
                 if (error != null || ad == null)
                 {
                     Debug.LogWarning("[IdleMine] AdMob load failed: " + (error != null ? error.GetMessage() : "no ad"));
+                    _status = (error != null ? "Load failed (code " + error.GetCode() + "): " + error.GetMessage() : "No ad returned")
+                              + ", retrying in " + Mathf.RoundToInt(_retryDelay) + "s";
                     _host.StartCoroutine(RetryLater());
                     return;
                 }
@@ -92,12 +106,14 @@ namespace IdleMine
 
             var ad = _ad;
             _ad = null;
+            _showing = true;
             bool earned = false, failed = false, finished = false;
 
             Action finish = () =>
             {
                 if (finished) return;
                 finished = true;
+                _showing = false;
                 ad.Destroy();
                 Load();
                 done(earned ? AdResult.Rewarded : failed ? AdResult.Failed : AdResult.Skipped);

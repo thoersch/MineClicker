@@ -22,6 +22,8 @@ namespace IdleMine
 
         public void Initialize() { Load(); }
 
+        public string Status { get { return _showing ? "Test ad showing" : IsReady ? "Test ad ready" : "Test ad loading"; } }
+
         void Load()
         {
             _loaded = false;
