@@ -16,7 +16,7 @@ namespace IdleMine
             enabled = true;
             // A disabled button (e.g. BUY when you can't afford it) answers with a soft "nope".
             var b = GetComponent<UnityEngine.UI.Selectable>();
-            AudioManager.Play(b == null || b.interactable ? Sfx.Click : Sfx.Deny);
+            Feedback.Play(b == null || b.interactable ? Sfx.Click : Sfx.Deny);
         }
         public void OnPointerUp(PointerEventData e) { _target = 1f; enabled = true; }
         public void OnPointerExit(PointerEventData e) { _target = 1f; enabled = true; }

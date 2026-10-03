@@ -4,9 +4,10 @@ using UnityEngine.UI;
 namespace IdleMine
 {
     /// <summary>
-    /// Small settings card opened from the gear button in the HUD: music and sound on/off, Restore
+    /// Small settings card opened from the gear button in the HUD: music, sound and haptics on/off, Restore
     /// Purchases, and a version line that also shows why ads are or aren't being offered (handy on TestFlight). Its GameObject starts inactive in the scene. Buttons are wired in the Inspector:
-    /// Gear -> Open, Close -> Close, Music -> ToggleMusic, Sound -> ToggleSound, Restore -> Restore.
+    /// Gear -> Open, Close -> Close, Music -> ToggleMusic, Sound -> ToggleSound, Haptics -> ToggleHaptics,
+    /// Restore -> Restore.
     /// </summary>
     public class SettingsPopup : MonoBehaviour
     {
@@ -16,6 +17,8 @@ namespace IdleMine
         [SerializeField] Text musicLabel;
         [SerializeField] Image soundImage;
         [SerializeField] Text soundLabel;
+        [SerializeField] Image hapticsImage;
+        [SerializeField] Text hapticsLabel;
         [SerializeField] Text statusText;
         [SerializeField] Text versionText;
 
@@ -59,7 +62,14 @@ namespace IdleMine
             if (audio == null) return;
             audio.SoundOn = !audio.SoundOn;
             Refresh();
-            AudioManager.Play(Sfx.Click); // audible confirmation when turning it back on
+            Feedback.Play(Sfx.Click); // audible confirmation when turning it back on
+        }
+
+        public void ToggleHaptics()
+        {
+            Haptics.Enabled = !Haptics.Enabled;
+            Refresh();
+            Haptics.Play(Haptic.Medium); // feel it when turning it back on
         }
 
         public void Restore()
@@ -79,6 +89,7 @@ namespace IdleMine
             bool music = audio != null && audio.MusicOn, sound = audio != null && audio.SoundOn;
             Set(musicImage, musicLabel, "MUSIC", music);
             Set(soundImage, soundLabel, "SOUND", sound);
+            if (hapticsImage != null) Set(hapticsImage, hapticsLabel, "HAPTICS", Haptics.Enabled);
         }
 
         static void Set(Image bg, Text label, string name, bool on)

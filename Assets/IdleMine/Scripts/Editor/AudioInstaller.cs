@@ -66,7 +66,7 @@ namespace IdleMine.EditorTools
                 ? "Everything is already installed. Delete a piece and run this again to rebuild it."
                 : "Installed " + built + " piece(s). Save the scene (Ctrl+S) to keep them.";
             Debug.Log("[IdleMine] Audio: " + msg);
-            if (!Application.isBatchMode) EditorUtility.DisplayDialog("Idle Mine", msg, "OK");
+            if (!Application.isBatchMode && !Quiet) EditorUtility.DisplayDialog("Idle Mine", msg, "OK");
         }
 
         static void BuildAudio(GameManager game, AdManager ads)

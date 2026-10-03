@@ -15,13 +15,15 @@ namespace IdleMine
     [Serializable]
     public class SaveData
     {
-        public int version = 1;
+        public int version = 2; // 2: Paragon progress is per run (runMoney), plus Paragon perks
         public double money;
         public double lifetimeOre;
         public double lifetimeMoney;
         public long totalTaps;
         public int paragonLevel;
         public long boostEndUtcTicks;
+        public double runMoney;
+        public List<string> paragonPerks = new List<string>();
         public List<LayerSave> layers = new List<LayerSave>();
         public List<string> unlockedNodes = new List<string>();
         public long lastSaveUtcTicks;

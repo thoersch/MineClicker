@@ -86,7 +86,7 @@ namespace IdleMine.EditorTools
                 ? "Everything is already installed. Delete a piece and run this again to rebuild it."
                 : "Installed " + built + " piece(s). Save the scene (Ctrl+S) to keep them.";
             Debug.Log("[IdleMine] Monetization: " + msg);
-            if (!Application.isBatchMode) EditorUtility.DisplayDialog("Idle Mine", msg, "OK");
+            if (!Application.isBatchMode && !Quiet) EditorUtility.DisplayDialog("Idle Mine", msg, "OK");
         }
 
         // ================================================================== pieces

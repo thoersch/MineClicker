@@ -59,10 +59,26 @@ namespace IdleMine
         /// and Dig Speed every time stats are recalculated (see RecalculateStats).</summary>
         public double ParagonMultiplier { get { return Math.Pow(1.0 + Config.paragonMultiplierPerLevel, ParagonLevel); } }
 
-        /// <summary>How many Paragon levels lifetime earnings have unlocked beyond the one already owned.</summary>
-        public int AvailableParagonLevels { get { return Math.Max(0, ParagonLevelForLifetime(LifetimeMoney) - ParagonLevel); } }
+        /// <summary>Cash earned since the last ascension (or new game). Paragon progress counts only this run,
+        /// and ascending resets it, so earnings past the next level's cost are lost: ascend when you can.</summary>
+        public double RunMoney { get { return _runMoney; } }
 
-        public bool CanAscend { get { return AvailableParagonLevels > 0; } }
+        /// <summary>Run earnings needed for the next Paragon level. Each level costs paragonRequirementGrowth
+        /// times more than the last.</summary>
+        public double NextParagonCost { get { return ParagonLevelCost(ParagonLevel); } }
+
+        /// <summary>One level at a time: 1 when this run has earned enough for the next level, else 0.</summary>
+        public int AvailableParagonLevels { get { return CanAscend ? 1 : 0; } }
+
+        public bool CanAscend { get { return _runMoney >= NextParagonCost; } }
+
+        /// <summary>The Paragon tree's perks (run-only, bought with Paragon Points).</summary>
+        public ParagonTree ParagonTree { get; private set; }
+
+        /// <summary>Paragon Points for this run: one per Paragon level, refilled by every ascension.</summary>
+        public int ParagonPoints { get { return ParagonLevel; } }
+        public int ParagonPointsSpent { get; private set; }
+        public int ParagonPointsAvailable { get { return Math.Max(0, ParagonPoints - ParagonPointsSpent); } }
 
         /// <summary>UTC ticks when the ad-bought income boost runs out (0 = never bought). It's wall-clock
         /// time, so a boost keeps running (and boosting offline earnings) while the player is away.</summary>
@@ -94,11 +110,14 @@ namespace IdleMine
         public event Action<SkillNode> NodePurchased;
         public event Action MinersChanged;
         public event Action<int> Ascended; // arg = Paragon levels gained
+        public event Action<ParagonPerk> PerkPurchased;
 
         double _digSpeed, _critChance, _critMult, _autoTapRate;
         double _autoTapAccum;
         float _saveTimer;
         bool _initialized, _boostApplied;
+        double _runMoney;
+        readonly HashSet<ParagonPerk> _ownedPerks = new HashSet<ParagonPerk>();
         long _pausedAtTicks;
         readonly List<int> _order = new List<int>();
 
@@ -125,6 +144,7 @@ namespace IdleMine
             Config = cfg;
             Stats = new StatBlock();
             Tree = SkillTreeGenerator.Generate(cfg);
+            ParagonTree = ParagonTree.Build();
             ForemanPass = MonetizationStore.Data.foremanPass;
 
             var save = SaveSystem.Load();
@@ -136,13 +156,16 @@ namespace IdleMine
             SyncBoost();
         }
 
-        /// <summary>Resets money, miners and the skill tree back to a fresh start. Used both for a brand
-        /// new save and for Ascend, which calls this after banking a new Paragon level.</summary>
+        /// <summary>Resets money, miners, the skill tree and Paragon perks back to a fresh start. Used both for a
+        /// brand new save and for Ascend, which calls this after banking a new Paragon level.</summary>
         void NewGame()
         {
             Money = Config.startingMoney;
+            _runMoney = 0;
             AssignedMiners = 0;
             Tree.ResetOwnership();
+            _ownedPerks.Clear();
+            ParagonPointsSpent = 0;
             Layers.Clear();
             Layers.Add(new MineLayer(0));
             RecalculateStats();
@@ -222,6 +245,7 @@ namespace IdleMine
             double cash = ore * layer.ValuePerOre;
             Money += cash;
             LifetimeMoney += cash;
+            _runMoney += cash;
             LifetimeOre += ore;
 
             if (!layer.Cleared)
@@ -367,17 +391,42 @@ namespace IdleMine
             return true;
         }
 
-        /// <summary>Cashes in every Paragon level lifetime earnings have unlocked: banks the level(s),
-        /// then wipes money, miners and the skill tree back to a fresh start. LifetimeOre/LifetimeMoney
-        /// and TotalTaps are career totals and are never reset, so Paragon progress never goes backwards.</summary>
+        /// <summary>Banks exactly one Paragon level, then wipes money, miners, the skill tree and Paragon perks
+        /// back to a fresh start (perk points refill at the new level). LifetimeOre/LifetimeMoney and TotalTaps
+        /// are career totals and are never reset.</summary>
         public bool Ascend()
         {
-            int gain = AvailableParagonLevels;
-            if (gain <= 0) return false;
-            ParagonLevel += gain;
+            if (!CanAscend) return false;
+            ParagonLevel += 1;
             NewGame();
-            if (Ascended != null) Ascended(gain);
+            if (Ascended != null) Ascended(1);
             Save();
+            return true;
+        }
+
+        // ================================================================== Paragon tree
+
+        public bool OwnsPerk(ParagonPerk p) { return _ownedPerks.Contains(p); }
+
+        /// <summary>Paragon level reached and the perk above it owned (the capstone needs both).</summary>
+        public bool IsPerkAvailable(ParagonPerk p)
+        {
+            if (p == null || OwnsPerk(p) || ParagonLevel < p.RequiredLevel) return false;
+            foreach (var parent in p.Parents) if (!OwnsPerk(parent)) return false;
+            return true;
+        }
+
+        public bool CanBuyPerk(ParagonPerk p) { return IsPerkAvailable(p) && ParagonPointsAvailable >= p.Cost; }
+
+        public bool TryBuyPerk(ParagonPerk p)
+        {
+            if (!CanBuyPerk(p)) return false;
+            _ownedPerks.Add(p);
+            ParagonPointsSpent += p.Cost;
+            int minersBefore = TotalMiners, slotsBefore = SlotsPerLayer;
+            RecalculateStats();
+            if (TotalMiners != minersBefore || SlotsPerLayer != slotsBefore) PlaceFreeMiners();
+            if (PerkPurchased != null) PerkPurchased(p);
             return true;
         }
 
@@ -389,6 +438,7 @@ namespace IdleMine
             if (amount <= 0) return;
             Money += amount;
             LifetimeMoney += amount;
+            _runMoney += amount;
         }
 
         /// <summary>What N minutes of (unboosted) income is worth right now. Rewards are sized this way so they
@@ -436,6 +486,8 @@ namespace IdleMine
             foreach (var n in Tree.Nodes)
                 if (n.Unlocked)
                     foreach (var e in n.Effects) Stats.Apply(e);
+            foreach (var p in _ownedPerks)
+                foreach (var e in p.Effects) Stats.Apply(e);
 
             // Paragon survives the tree reset that buying it causes, so it's reapplied here rather than
             // stored as a modifier that ClearModifiers() would wipe.
@@ -482,31 +534,11 @@ namespace IdleMine
             return 0.7 + 0.8 * Hash.Hash01(Config.layerSeed, i, 7, 11);
         }
 
-        /// <summary>Total lifetime earnings needed to reach a given Paragon level (geometric sum of the
-        /// per-level cost, mirroring how skill node costs grow).</summary>
-        public double ParagonRequirement(int level)
+        /// <summary>Run earnings needed to go from a Paragon level to the next one (mirrors how skill node
+        /// costs grow).</summary>
+        public double ParagonLevelCost(int level)
         {
-            if (level <= 0) return 0;
-            double req0 = Config.paragonBaseRequirement;
-            double growth = Config.paragonRequirementGrowth;
-            if (Math.Abs(growth - 1.0) < 1e-9) return req0 * level;
-            return req0 * (Math.Pow(growth, level) - 1.0) / (growth - 1.0);
-        }
-
-        /// <summary>Highest Paragon level a given lifetime-earnings total can afford.</summary>
-        public int ParagonLevelForLifetime(double lifetimeMoney)
-        {
-            double req0 = Config.paragonBaseRequirement;
-            if (lifetimeMoney < req0) return 0;
-            double growth = Config.paragonRequirementGrowth;
-            int level = Math.Abs(growth - 1.0) < 1e-9
-                ? (int)Math.Floor(lifetimeMoney / req0)
-                : (int)Math.Floor(Math.Log(lifetimeMoney * (growth - 1.0) / req0 + 1.0, growth) + 1e-9);
-
-            // Closed-form log can be off by one near the boundary from floating point error; settle exactly.
-            while (level > 0 && ParagonRequirement(level) > lifetimeMoney) level--;
-            while (ParagonRequirement(level + 1) <= lifetimeMoney) level++;
-            return Math.Max(0, level);
+            return Config.paragonBaseRequirement * Math.Pow(Config.paragonRequirementGrowth, Math.Max(0, level));
         }
 
         void RecalculateIncome()
@@ -547,11 +579,13 @@ namespace IdleMine
                 lifetimeMoney = LifetimeMoney,
                 totalTaps = TotalTaps,
                 paragonLevel = ParagonLevel,
+                runMoney = _runMoney,
                 boostEndUtcTicks = BoostEndUtcTicks,
                 lastSaveUtcTicks = DateTime.UtcNow.Ticks,
             };
             foreach (var l in Layers) d.layers.Add(new LayerSave { progress = l.Progress, miners = l.Miners });
             foreach (var n in Tree.Nodes) if (n.Unlocked) d.unlockedNodes.Add(n.Id);
+            foreach (var p in _ownedPerks) d.paragonPerks.Add(p.Id);
             SaveSystem.Save(d);
         }
 
@@ -563,6 +597,22 @@ namespace IdleMine
             TotalTaps = s.totalTaps;
             ParagonLevel = s.paragonLevel;
             BoostEndUtcTicks = s.boostEndUtcTicks;
+            _runMoney = s.runMoney;
+            if (s.version < 2)
+            {
+                // v1 measured Paragon progress on lifetime earnings: carry over what was past the current level.
+                double g = Config.paragonRequirementGrowth, banked = 0;
+                for (int i = 0; i < ParagonLevel; i++) banked += Config.paragonBaseRequirement * Math.Pow(g, i);
+                _runMoney = Math.Max(0, LifetimeMoney - banked);
+            }
+
+            _ownedPerks.Clear();
+            ParagonPointsSpent = 0;
+            foreach (var id in s.paragonPerks)
+            {
+                var perk = ParagonTree.Get(id);
+                if (perk != null && _ownedPerks.Add(perk)) ParagonPointsSpent += perk.Cost;
+            }
 
             Tree.ResetOwnership();
             foreach (var id in s.unlockedNodes)
@@ -654,7 +704,7 @@ namespace IdleMine
         void DebugAddMoney() { Money = Math.Max(1000, Money * 1000); }
 
         [ContextMenu("Debug/Grant 1 Paragon level")]
-        void DebugGrantParagon() { LifetimeMoney = Math.Max(LifetimeMoney, ParagonRequirement(ParagonLevel + 1)); }
+        void DebugGrantParagon() { _runMoney = Math.Max(_runMoney, NextParagonCost); }
 
         [ContextMenu("Debug/Wipe save and restart")]
         void DebugWipe()

@@ -5,9 +5,9 @@ namespace IdleMine
 {
     /// <summary>
     /// Paragon modal: dim background + centered card, opened the same way as the Skill Tree. Shows the
-    /// permanent multiplier earned from past ascensions and how close lifetime earnings are to the next
-    /// one. Ascending cashes in every level currently available, wipes money/miners/the skill tree back
-    /// to a fresh start, and keeps (and grows) the multiplier.
+    /// permanent multiplier earned from past ascensions and how close this run's earnings are to the next
+    /// level. Ascending banks exactly one level, wipes money/miners/the skill tree/Paragon perks back to a
+    /// fresh start, and keeps (and grows) the multiplier. Earnings past the next level don't carry over.
     ///
     /// The panel's GameObject starts inactive in the scene. Buttons are wired in the Inspector:
     /// Close -> Close, Ascend -> Ascend. Ascend arms on the first tap and only fires on a second tap
@@ -65,23 +65,19 @@ namespace IdleMine
         void Refresh()
         {
             int level = game.ParagonLevel;
-            double lifetime = game.LifetimeMoney;
-            double thisLevel = game.ParagonRequirement(level);
-            double nextLevel = game.ParagonRequirement(level + 1);
-            int available = game.AvailableParagonLevels;
+            double run = game.RunMoney, cost = game.NextParagonCost;
 
             levelText.text = "PARAGON " + level;
             multiplierText.text = NumberFormat.Multiplier(game.ParagonMultiplier) + " Ore Value, Miner Speed, Tap Power & Dig Speed";
-            lifetimeText.text = "Lifetime earnings: " + NumberFormat.Money(lifetime);
+            lifetimeText.text = "Earned this run: " + NumberFormat.Money(System.Math.Min(run, cost)) + " / " + NumberFormat.Money(cost);
 
-            double span = System.Math.Max(1e-9, nextLevel - thisLevel);
-            float frac = Mathf.Clamp01((float)((lifetime - thisLevel) / span));
+            float frac = Mathf.Clamp01((float)(run / System.Math.Max(1e-9, cost)));
             var fill = progressFill.rectTransform;
             if (Mathf.Abs(fill.anchorMax.x - frac) > 0.0005f) fill.anchorMax = new Vector2(frac, 1);
 
-            nextLevelText.text = available > 0
-                ? "+" + available + " level" + (available == 1 ? "" : "s") + " ready to claim"
-                : "Next level at " + NumberFormat.Money(nextLevel);
+            nextLevelText.text = game.CanAscend
+                ? "Paragon " + (level + 1) + " is ready! Extra earnings don't carry over, so ascend now."
+                : "Lifetime earnings: " + NumberFormat.Money(game.LifetimeMoney);
 
             bool canAscend = game.CanAscend;
             if (!canAscend) _armed = false;
@@ -92,7 +88,7 @@ namespace IdleMine
             else if (_armed)
                 SetAscend("RESET THE MINE\n<size=26>TAP AGAIN TO CONFIRM</size>", Palette.Red, Palette.Text);
             else
-                SetAscend("ASCEND\n<size=26>+" + available + " Paragon level" + (available == 1 ? "" : "s") + "</size>", Palette.Gold, Palette.Panel);
+                SetAscend("ASCEND\n<size=26>to Paragon " + (level + 1) + "</size>", Palette.Gold, Palette.Panel);
         }
 
         void SetAscend(string label, Color bg, Color fg)
@@ -116,9 +112,8 @@ namespace IdleMine
                 return;
             }
             _armed = false;
-            game.Ascend();
-            Punch.Play(ascendButton.transform, 0.4f, 0.4f);
-            Refresh();
+            if (game.Ascend()) Close(); // the full-screen celebration takes over
+            else Refresh();
         }
     }
 }

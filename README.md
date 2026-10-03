@@ -111,6 +111,23 @@ The project uses the classic Input Manager with `StandaloneInputModule`. All gam
 
 The only direct `Input` call is the Android back button closing the tree, and it compiles out automatically when the legacy input handler is disabled.
 
+## Paragon
+
+**One level per ascension.** Progress toward the next Paragon level counts only the money earned this run. Ascending banks exactly one level and resets that count, so anything earned past the requirement is lost. This encourages players to ascend as soon as they can. The tuning is `paragonBaseRequirement` / `paragonRequirementGrowth` in GameConfig.
+
+**The celebration.** Ascending plays a full-screen celebration: spinning rays, the new level, the multiplier jump, confetti, the fanfare and heavy haptics. Tap anywhere to continue.
+
+**The Paragon tree** (`SkillTree/ParagonTree.cs`, `UI/ParagonTreeView.cs`):
+* Open it with the purple PARAGON TREE button in the skill tree. It turns over like a card.
+* Each run gives Paragon Points equal to your Paragon level.
+* Perks cost points, unlock at rising Paragon levels (1, 3, 5, 8, 12, 16, 20, then 30 for the capstone), and each needs the perk above it.
+* Perks last for the current run only: ascending clears them and refills the points.
+* Edit the perk table in `ParagonTree.Build()`.
+
+**Haptics.** `Feedback.Play(Sfx.X)` plays a sound together with a matching haptic, from a selection tick on button presses up to heavy hits for keystones, Motherlodes and ascending. The iOS side is `Assets/Plugins/iOS/IdleMineHaptics.mm`. Players can turn haptics off in Settings.
+
+**Install or update all UI:** open `Main.unity`, click **Idle Mine > Install All UI In Open Scene**, then save the scene. This runs the monetization, audio and Paragon installers together. Pieces that already exist are left alone.
+
 ## Ads & purchases
 
 Rewarded ads only, always opt-in: no banners and no forced interstitials. Each ad button shows an "AD" tag so a player knows before tapping that a video will play. A button hides itself when no ad is loaded, when a cooldown is running, or once the daily cap is reached.

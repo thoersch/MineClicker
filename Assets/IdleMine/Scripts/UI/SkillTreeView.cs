@@ -69,6 +69,7 @@ namespace IdleMine
         {
             if (_built) return;
             _built = true;
+            game.Ascended += OnAscended;
             _panel = (RectTransform)transform;
             _selectionImage = selectionRing.GetComponent<Image>();
             var tree = game.Tree;
@@ -105,6 +106,18 @@ namespace IdleMine
             rt.sizeDelta = new Vector2(d.magnitude, rt.sizeDelta.y);
             rt.localRotation = Quaternion.Euler(0, 0, Mathf.Atan2(d.y, d.x) * Mathf.Rad2Deg);
             return new Edge { Img = img, A = a, B = b, Color = c };
+        }
+
+        void OnDestroy()
+        {
+            if (game != null) game.Ascended -= OnAscended;
+        }
+
+        // A fresh tree after ascending: next open recentres on "Add 1 Miner" and selects it again.
+        void OnAscended(int levels)
+        {
+            _focusedOnce = false;
+            Select(null);
         }
 
         // ================================================================== open / close
@@ -194,7 +207,7 @@ namespace IdleMine
             if (_selected == v.Node && game.CanPurchase(v.Node)) { Buy(); return; }
             Select(v.Node);
             Punch.Play(v.Visual, 0.12f, 0.2f);
-            AudioManager.Play(Sfx.Click);
+            Feedback.Play(Sfx.Click);
         }
 
         void Select(SkillNode n)

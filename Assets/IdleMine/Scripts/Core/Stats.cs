@@ -42,7 +42,16 @@ namespace IdleMine
 
         public SkillEffect Scaled(double k)
         {
-            return op == ModOp.Multiply ? this : new SkillEffect(stat, op, value * k);
+            if (op == ModOp.Multiply) return this;
+            double v = value * k;
+            // You can't hire half a miner or dig half a slot: counts stay whole (and never drop to zero).
+            if (op == ModOp.Flat && IsWholeNumber(stat)) v = Math.Max(1, Math.Round(v, MidpointRounding.AwayFromZero));
+            return new SkillEffect(stat, op, v);
+        }
+
+        public static bool IsWholeNumber(StatType t)
+        {
+            return t == StatType.MinerCount || t == StatType.LayerSlots;
         }
     }
 
@@ -118,7 +127,7 @@ namespace IdleMine
                 case StatType.MinerCount: return "+" + e.value + (e.value == 1 ? " Miner" : " Miners");
                 case StatType.LayerSlots: return "+" + e.value + " Miner Slot" + (e.value == 1 ? "" : "s") + " on every layer";
                 case StatType.CritChance: return "+" + NumberFormat.Percent(e.value) + " Tap Crit Chance";
-                case StatType.CritMultiplier: return "+" + e.value + "x Crit Damage";
+                case StatType.CritMultiplier: return "+" + e.value + "x Ore from Crit Taps";
                 case StatType.AutoTapRate: return "+" + e.value + " Auto-Taps / sec";
                 case StatType.DepthBonus: return "+" + NumberFormat.Percent(e.value) + " Ore Value per depth level";
                 case StatType.OfflineEfficiency: return "+" + NumberFormat.Percent(e.value) + " Offline Earnings";
@@ -139,7 +148,7 @@ namespace IdleMine
                 case StatType.LayerSlots: return "Layer Slots";
                 case StatType.DigSpeed: return "Dig Speed";
                 case StatType.CritChance: return "Crit Chance";
-                case StatType.CritMultiplier: return "Crit Damage";
+                case StatType.CritMultiplier: return "Crit Bonus";
                 case StatType.AutoTapRate: return "Auto-Tap";
                 case StatType.DepthBonus: return "Depth Bonus";
                 case StatType.OfflineEfficiency: return "Offline Earnings";

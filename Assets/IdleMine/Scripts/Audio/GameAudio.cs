@@ -3,7 +3,8 @@ using UnityEngine;
 namespace IdleMine
 {
     /// <summary>
-    /// Turns game events into sounds, so the simulation and most views stay audio-free:
+    /// Turns game events into sounds and haptics (via Feedback), so the simulation and most views stay
+    /// feedback-free:
     /// taps dig (crits clang), new layers rumble open (Motherlodes shimmer), skills pop (keystones chime),
     /// ascending swells, and every ad or Foreman Pass reward sparkles. Auto-taps stay silent.
     /// </summary>
@@ -19,6 +20,7 @@ namespace IdleMine
             game.LayerUnlocked += OnLayerUnlocked;
             game.NodePurchased += OnNodePurchased;
             game.Ascended += OnAscended;
+            game.PerkPurchased += OnPerkPurchased;
             if (ads != null) ads.Rewarded += OnRewarded;
         }
 
@@ -30,27 +32,30 @@ namespace IdleMine
                 game.LayerUnlocked -= OnLayerUnlocked;
                 game.NodePurchased -= OnNodePurchased;
                 game.Ascended -= OnAscended;
+                game.PerkPurchased -= OnPerkPurchased;
             }
             if (ads != null) ads.Rewarded -= OnRewarded;
         }
 
         void OnTapped(TapResult r)
         {
-            if (!r.Auto) AudioManager.Play(r.Crit ? Sfx.Crit : Sfx.Dig);
+            if (!r.Auto) Feedback.Play(r.Crit ? Sfx.Crit : Sfx.Dig);
         }
 
         void OnLayerUnlocked(MineLayer l)
         {
-            AudioManager.Play(l.IsMotherlode ? Sfx.Motherlode : Sfx.Breakthrough);
+            Feedback.Play(l.IsMotherlode ? Sfx.Motherlode : Sfx.Breakthrough);
         }
 
         void OnNodePurchased(SkillNode n)
         {
-            AudioManager.Play(n.Kind == NodeKind.Keystone ? Sfx.Keystone : Sfx.Purchase);
+            Feedback.Play(n.Kind == NodeKind.Keystone ? Sfx.Keystone : Sfx.Purchase);
         }
 
-        void OnAscended(int levels) { AudioManager.Play(Sfx.Ascend); }
+        void OnAscended(int levels) { } // the full-screen AscendCelebration owns this moment's sound and haptics
 
-        void OnRewarded(AdPlacement p) { AudioManager.Play(Sfx.Reward); }
+        void OnPerkPurchased(ParagonPerk p) { Feedback.Play(Sfx.Keystone); }
+
+        void OnRewarded(AdPlacement p) { Feedback.Play(Sfx.Reward); }
     }
 }

@@ -41,6 +41,7 @@ namespace IdleMine
 
         void OnAscended(int levelsGained)
         {
+            if (FindObjectOfType<AscendCelebration>() != null) return; // the full-screen celebration covers it
             Show("PARAGON " + game.ParagonLevel + "!",
                  "Mine reset  \u00B7  now " + NumberFormat.Multiplier(game.ParagonMultiplier) + " stronger, permanently",
                  Palette.Gold);

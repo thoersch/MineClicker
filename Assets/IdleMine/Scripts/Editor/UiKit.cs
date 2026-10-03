@@ -15,6 +15,9 @@ namespace IdleMine.EditorTools
     {
         const string ArtRoot = "Assets/IdleMine/Art/";
 
+        /// <summary>Set by "Install All" so each installer skips its own dialog.</summary>
+        internal static bool Quiet;
+
         internal static Font LabelFont;
         internal static Sprite Rounded, Circle, Ring;
 
