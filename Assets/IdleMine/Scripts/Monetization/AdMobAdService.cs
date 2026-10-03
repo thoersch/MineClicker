@@ -1,8 +1,8 @@
 #if IDLEMINE_ADMOB
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using GoogleMobileAds.Api;
-using GoogleMobileAds.Common;
 using GoogleMobileAds.Ump.Api;
 using UnityEngine;
 
@@ -15,7 +15,9 @@ namespace IdleMine
     ///
     /// Startup: Google's consent form (GDPR, and Apple's ATT prompt if enabled in the AdMob console) is
     /// shown first when required, then the SDK starts and keeps one ad preloaded, retrying with backoff.
-    /// SDK callbacks can arrive on a background thread, so each one is hopped onto Unity's main thread.
+    /// SDK callbacks can arrive on a background thread, so each one is hopped onto Unity's main thread through
+    /// our own queue. (Google's MobileAdsEventExecutor only exists after MobileAds.Initialize, which comes
+    /// after the consent check, so consent callbacks queued on it were never delivered.)
     /// </summary>
     public class AdMobAdService : IRewardedAdService
     {
@@ -32,6 +34,7 @@ namespace IdleMine
         {
             _unitId = unitId;
             _host = host;
+            if (host.GetComponent<MainThreadQueue>() == null) host.gameObject.AddComponent<MainThreadQueue>();
         }
 
         public bool IsReady { get { return _ad != null && _ad.CanShowAd(); } }
@@ -135,7 +138,34 @@ namespace IdleMine
             action();
         }
 
-        static void OnMain(Action action) { MobileAdsEventExecutor.ExecuteInUpdate(action); }
+        static void OnMain(Action action) { MainThreadQueue.Post(action); }
+    }
+
+    /// <summary>Runs actions posted from any thread on Unity's main thread, during Update.</summary>
+    public class MainThreadQueue : MonoBehaviour
+    {
+        static readonly Queue<Action> Pending = new Queue<Action>();
+        static readonly object Gate = new object();
+
+        public static void Post(Action action)
+        {
+            lock (Gate) Pending.Enqueue(action);
+        }
+
+        void Update()
+        {
+            while (true)
+            {
+                Action next;
+                lock (Gate)
+                {
+                    if (Pending.Count == 0) return;
+                    next = Pending.Dequeue();
+                }
+                try { next(); }
+                catch (Exception e) { Debug.LogException(e); }
+            }
+        }
     }
 }
 #endif
