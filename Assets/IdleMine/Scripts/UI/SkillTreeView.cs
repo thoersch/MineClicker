@@ -27,6 +27,13 @@ namespace IdleMine
         [SerializeField] PanZoom panZoom;
         [SerializeField] FxLayer fx;
 
+        [Header("Which tree")]
+        [Tooltip("Show the Deep Core instead of the normal skill tree (the Deep Core panel is a themed copy of this one).")]
+        [SerializeField] bool deepCore;
+        [Tooltip("Optional node art override (the Deep Core uses hexagons).")]
+        [SerializeField] Sprite nodeShape;
+        [SerializeField] Sprite nodeRingShape;
+
         [Header("Tree content")]
         [SerializeField] RectTransform labelsLayer;
         [SerializeField] RectTransform edgesLayer;
@@ -61,6 +68,8 @@ namespace IdleMine
         float _openT, _refreshTimer;
 
         public bool IsOpen { get { return _open; } }
+        public bool IsDeepCore { get { return deepCore; } }
+        SkillTree TreeData { get { return deepCore ? game.DeepTree : game.Tree; } }
         public SkillNode Selected { get { return _selected; } }
 
         // ================================================================== build (first open)
@@ -72,7 +81,7 @@ namespace IdleMine
             game.Ascended += OnAscended;
             _panel = (RectTransform)transform;
             _selectionImage = selectionRing.GetComponent<Image>();
-            var tree = game.Tree;
+            var tree = TreeData;
             panZoom.Bounds = tree.Bounds;
 
             // Branch names out at the rim
@@ -91,6 +100,7 @@ namespace IdleMine
                 foreach (var p in n.Parents) _edges.Add(MakeEdge(p, n, c));
                 var v = Instantiate(nodePrefab, nodesLayer);
                 v.Setup(n, c, OnNodeClicked);
+                if (nodeShape != null) v.SetShape(nodeShape, nodeRingShape);
                 _views.Add(v);
                 _byNode[n] = v;
             }
@@ -137,11 +147,15 @@ namespace IdleMine
                 // First visit: centre on "Add 1 Miner" and pre-select it for new players.
                 _focusedOnce = true;
                 panZoom.FocusOn(Vector2.zero, initialZoom, true);
-                if (!game.Tree.Root.Unlocked) Select(game.Tree.Root);
+                if (!TreeData.Root.Unlocked) Select(TreeData.Root);
             }
         }
 
         public void Close() { _open = false; }
+
+        /// <summary>Open/close without the slide (used when flipping between the skill tree and the Deep Core).</summary>
+        public void OpenInstant() { Open(); _openT = 1f; }
+        public void CloseInstant() { _open = false; _openT = 0f; gameObject.SetActive(false); }
 
         void Update()
         {
@@ -173,13 +187,13 @@ namespace IdleMine
 
         void RefreshAll(bool celebrateReveals)
         {
-            var tree = game.Tree;
+            var tree = TreeData;
             foreach (var v in _views)
             {
                 var n = v.Node;
                 NodeState s;
                 if (n.Unlocked) s = NodeState.Owned;
-                else if (tree.IsAvailable(n)) s = game.CanAfford(n) ? NodeState.Affordable : NodeState.Available;
+                else if (game.IsNodeAvailable(n)) s = game.CanAfford(n) ? NodeState.Affordable : NodeState.Available;
                 else if (tree.IsRevealed(n)) s = NodeState.Locked;
                 else s = NodeState.Hidden;
 
@@ -238,7 +252,7 @@ namespace IdleMine
             buyButton.gameObject.SetActive(has);
             if (!has) return;
 
-            var tree = game.Tree;
+            var tree = TreeData;
             Color branchColor = n.Branch >= 0 ? tree.Branches[n.Branch].Color : Palette.Gold;
             string branch = n.Branch >= 0 ? tree.Branches[n.Branch].Name.ToUpperInvariant() : "";
 
@@ -265,7 +279,7 @@ namespace IdleMine
                 statusText.text = "Owned";
                 SetBuy("OWNED", Palette.PanelLight, Palette.TextDim, false);
             }
-            else if (tree.IsAvailable(n))
+            else if (game.IsNodeAvailable(n))
             {
                 bool afford = game.CanAfford(n);
                 statusText.text = afford ? "Tap the node again to buy instantly" : "Need " + NumberFormat.Money(cost - game.Money) + " more";
@@ -273,7 +287,7 @@ namespace IdleMine
             }
             else
             {
-                statusText.text = tree.DescribeRequirement(n);
+                statusText.text = deepCore && n == tree.Root ? "Complete this run's skill tree to breach the core" : tree.DescribeRequirement(n);
                 SetBuy("LOCKED\n<size=30>" + NumberFormat.Money(cost) + "</size>", Palette.PanelLight, Palette.TextDim, false);
             }
         }
@@ -299,7 +313,7 @@ namespace IdleMine
             }
 
             var v = _byNode[n];
-            Color c = n.Branch >= 0 ? game.Tree.Branches[n.Branch].Color : Palette.Gold;
+            Color c = n.Branch >= 0 ? TreeData.Branches[n.Branch].Color : Palette.Gold;
             Punch.Play(v.Visual, 0.45f, 0.4f);
             Vector2 p = fx.WorldToLocal(v.transform.position);
             fx.SpawnChips(p, c, 18);
@@ -312,9 +326,9 @@ namespace IdleMine
             SkillNode best = null;
             bool bestAffordable = false;
             double bestCost = double.MaxValue;
-            foreach (var n in game.Tree.Nodes)
+            foreach (var n in TreeData.Nodes)
             {
-                if (!game.Tree.IsAvailable(n)) continue;
+                if (!game.IsNodeAvailable(n)) continue;
                 double cost = game.GetCost(n);
                 bool afford = cost <= game.Money;
                 if ((afford && !bestAffordable) || (afford == bestAffordable && cost < bestCost))

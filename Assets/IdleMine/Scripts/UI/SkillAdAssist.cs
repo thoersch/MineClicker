@@ -34,7 +34,7 @@ namespace IdleMine
 
         bool Eligible(SkillNode n)
         {
-            if (!game.Tree.IsAvailable(n) || game.CanAfford(n)) return false;
+            if (!game.IsNodeAvailable(n) || game.CanAfford(n)) return false;
             return game.Money >= game.GetCost(n) * game.Config.skillAssistThreshold;
         }
 
@@ -48,7 +48,7 @@ namespace IdleMine
             {
                 _waiting = false;
                 _timer = 0f;
-                if (!ok || tree.Selected != n || !game.Tree.IsAvailable(n)) return;
+                if (!ok || tree.Selected != n || !game.IsNodeAvailable(n)) return;
                 game.GrantMoney(game.GetCost(n) - game.Money);
                 ads.StartCooldown(AdPlacement.SkillAssist, game.Config.skillAssistCooldownMinutes * 60.0);
                 tree.Buy();

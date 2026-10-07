@@ -44,22 +44,44 @@ namespace IdleMine
         }
     }
 
-    /// <summary>Flavor for layers: rock bands every few levels, and the ore found in them.</summary>
+    /// <summary>
+    /// Flavor for layers: a rock band every five levels, and the ore found in them. The bands run from the surface
+    /// through the planet's core, then into stranger places (Hollow Earth, dwarven halls, dragon hoards...) and out
+    /// into cosmic depths, 250 layers in all before the endless numbered Abyss. Ores keep advancing with depth
+    /// instead of looping back to Copper.
+    /// </summary>
     public static class LayerCatalog
     {
         public const int LayersPerBand = 5;
 
         static readonly string[] Bands =
         {
+            // the planet
             "Topsoil", "Clay", "Limestone", "Sandstone", "Shale", "Granite", "Basalt", "Obsidian",
-            "Crystal Caverns", "Magma Veins", "Mantle", "Outer Core", "Inner Core", "The Deep", "Abyss"
+            "Crystal Caverns", "Magma Veins", "Mantle", "Outer Core", "Inner Core", "The Deep", "Abyss",
+            // below the bottom of the world
+            "Hollow Earth", "Fungal Forest", "Fossil Graveyard", "Glowworm Grotto", "Sunken City",
+            "Dwarven Halls", "Lost Forge", "Lava Lakes", "Dragon's Hoard", "Titan Bones",
+            "Geode Palace", "Quartz Cathedral", "Shadow Roots", "Whispering Dark", "Elder Ruins",
+            "Rune Vaults", "Frozen Heart", "Storm Caves", "Living Rock", "Prism Depths",
+            // out among the stars
+            "Starfall Crater", "Meteor Core", "Void Rift", "Astral Seam", "Nebula Veins",
+            "Comet Ice", "Gravity Well", "Time Strata", "Dream Stone", "Celestial Bedrock",
+            "Cosmic Furnace", "Dark Matter", "Singularity", "Event Horizon", "Primordial Chaos",
         };
 
         static readonly string[] Ores =
         {
             "Copper", "Tin", "Iron", "Coal", "Silver", "Gold", "Platinum", "Cobalt", "Titanium",
-            "Mithril", "Adamantite", "Orichalcum", "Starmetal", "Voidstone", "Aether"
+            "Mithril", "Adamantite", "Orichalcum", "Starmetal", "Voidstone", "Aether",
+            "Moonstone", "Sunsteel", "Dragonglass", "Bloodstone", "Frostgold", "Runesilver",
+            "Thunderite", "Shadowsteel", "Phoenix Ore", "Titanite", "Celestium", "Nebulite",
+            "Starshard", "Chronium", "Dreamsteel", "Void Crystal", "Darkmatter", "Quasarite",
+            "Neutronium", "Singularium", "Primordium", "Eternium",
         };
+
+        // The first 15 ores change every 3 layers (as before), the rest every 9, so later ones last a while.
+        const int EarlyOres = 15, EarlyStep = 3, LateStep = 9;
 
         public static int Band(int layer) { return layer / LayersPerBand; }
         public static int BandCount { get { return Bands.Length; } }
@@ -73,7 +95,9 @@ namespace IdleMine
 
         public static string OreName(int layer)
         {
-            return Ores[(layer / 3) % Ores.Length];
+            int i = layer < EarlyOres * EarlyStep ? layer / EarlyStep : EarlyOres + (layer - EarlyOres * EarlyStep) / LateStep;
+            if (i < Ores.Length) return Ores[i];
+            return Ores[Ores.Length - 1] + " " + NumberFormat.Roman(i - Ores.Length + 2);
         }
     }
 }

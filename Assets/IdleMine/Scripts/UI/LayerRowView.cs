@@ -20,7 +20,7 @@ namespace IdleMine
     /// so the mine can be hundreds of layers deep while only ~8 rows exist.
     /// A row shows a real layer, the locked layer just below the frontier, or fading darkness beyond.
     /// </summary>
-    public class LayerRowView : MonoBehaviour, IPointerClickHandler
+    public class LayerRowView : MonoBehaviour, IPointerClickHandler, IPointerDownHandler, IPointerUpHandler
     {
         enum Mode { Layer, Locked, Dark }
 
@@ -224,8 +224,23 @@ namespace IdleMine
 
         // ================================================================== tapping
 
+        bool _blastConsumedClick;
+
+        // Holding a layer lights dynamite (once the Deep Core's Demolition branch is unlocked).
+        public void OnPointerDown(PointerEventData e)
+        {
+            _blastConsumedClick = false;
+            if (_mode == Mode.Layer && DynamiteView.Instance != null) DynamiteView.Instance.Begin(this, e);
+        }
+
+        public void OnPointerUp(PointerEventData e)
+        {
+            if (DynamiteView.Instance != null && DynamiteView.Instance.Release(this)) _blastConsumedClick = true;
+        }
+
         public void OnPointerClick(PointerEventData e)
         {
+            if (_blastConsumedClick) { _blastConsumedClick = false; return; } // that press was a blast, not a tap
             if (_mode != Mode.Layer)
             {
                 Punch.Play(visual, 0.02f, 0.2f);

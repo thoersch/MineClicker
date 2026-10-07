@@ -30,6 +30,13 @@ namespace IdleMine
                 case Sfx.Reward: return Haptic.Success;
                 case Sfx.Cart: return Haptic.Soft;
                 case Sfx.Ascend: return Haptic.Heavy;
+                case Sfx.Fuse: return Haptic.Light;
+                case Sfx.Boom: return Haptic.Heavy;
+                case Sfx.Gem: return Haptic.Medium;
+                case Sfx.Overclock: return Haptic.Heavy;
+                case Sfx.SwingHit: return Haptic.Heavy;
+                case Sfx.SwingMiss: return Haptic.Warning;
+                case Sfx.Perfect: return Haptic.Heavy;
                 default: return Haptic.Light;
             }
         }

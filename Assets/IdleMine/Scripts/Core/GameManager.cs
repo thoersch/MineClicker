@@ -13,6 +13,15 @@ namespace IdleMine
         public bool Auto;
     }
 
+    public class BlastResult
+    {
+        public bool Detonated;
+        public int Center;
+        public float Charge;
+        public double Money;
+        public readonly List<int> Layers = new List<int>();
+    }
+
     public class OfflineReport
     {
         public double AwaySeconds;
@@ -72,6 +81,12 @@ namespace IdleMine
 
         public bool CanAscend { get { return _runMoney >= NextParagonCost; } }
 
+        /// <summary>The Deep Core: the prestige tree past the skill tree (resets every run, like the skill tree).</summary>
+        public SkillTree DeepTree { get; private set; }
+
+        /// <summary>Permanent: set the first time a run completes the whole skill tree. Never reset.</summary>
+        public bool DeepCoreUnlocked { get; private set; }
+
         /// <summary>The Paragon tree's perks (run-only, bought with Paragon Points).</summary>
         public ParagonTree ParagonTree { get; private set; }
 
@@ -111,12 +126,18 @@ namespace IdleMine
         public event Action MinersChanged;
         public event Action<int> Ascended; // arg = Paragon levels gained
         public event Action<ParagonPerk> PerkPurchased;
+        public event Action DeepCoreOpened;          // first time the skill tree is completed
+        public event Action<BlastResult> Blasted;     // a dynamite blast went off
+        public event Action OverclockStarted;
 
         double _digSpeed, _critChance, _critMult, _autoTapRate;
         double _autoTapAccum;
         float _saveTimer;
         bool _initialized, _boostApplied;
         double _runMoney;
+        float _dynamiteReadyAt, _overclockEndsAt;
+        double _overclockMeter, _overclockPowerAtStart;
+        bool _overclockApplied;
         readonly HashSet<ParagonPerk> _ownedPerks = new HashSet<ParagonPerk>();
         long _pausedAtTicks;
         readonly List<int> _order = new List<int>();
@@ -144,6 +165,7 @@ namespace IdleMine
             Config = cfg;
             Stats = new StatBlock();
             Tree = SkillTreeGenerator.Generate(cfg);
+            DeepTree = SkillTreeGenerator.Generate(cfg, new DeepCoreRecipe());
             ParagonTree = ParagonTree.Build();
             ForemanPass = MonetizationStore.Data.foremanPass;
 
@@ -164,6 +186,7 @@ namespace IdleMine
             _runMoney = 0;
             AssignedMiners = 0;
             Tree.ResetOwnership();
+            DeepTree.ResetOwnership();
             _ownedPerks.Clear();
             ParagonPointsSpent = 0;
             Layers.Clear();
@@ -187,6 +210,13 @@ namespace IdleMine
             Stats.SetBase(StatType.OfflineEfficiency, Config.baseOfflineEfficiency);
             Stats.SetBase(StatType.OfflineCapHours, Config.baseOfflineCapHours);
             Stats.SetBase(StatType.SkillDiscount, 0);
+            foreach (StatType t in new[] { StatType.DynamitePower, StatType.DynamiteRadius, StatType.DynamiteCooldownCut,
+                                            StatType.GemRate, StatType.GemValue, StatType.DrillCount, StatType.DrillPower,
+                                            StatType.OverclockPower, StatType.OverclockDuration, StatType.SwingPower,
+                                            StatType.SwingWindow, StatType.SwingRate, StatType.DrillBore })
+                Stats.SetBase(t, 0);
+            Stats.SetBase(StatType.DynamiteCharge, 1);
+            Stats.SetBase(StatType.OverclockCharge, 1);
         }
 
         // ================================================================== frame loop
@@ -195,6 +225,7 @@ namespace IdleMine
         {
             if (!_initialized) return;
             SyncBoost();
+            UpdateOverclock(Time.unscaledDeltaTime);
             Tick(Time.deltaTime, true);
 
             _saveTimer += Time.unscaledDeltaTime;
@@ -210,8 +241,9 @@ namespace IdleMine
             for (int i = 0; i < count; i++)
             {
                 var layer = Layers[i];
-                if (layer.Miners <= 0) continue;
-                double ore = layer.Miners * layer.OrePerMinerPerSecond * Yield(layer) * dt;
+                double workers = layer.Miners + DrillWorkers(i);
+                if (workers <= 0) continue;
+                double ore = workers * layer.OrePerMinerPerSecond * Yield(layer) * dt;
                 layer.PendingIncome += AddOre(layer, ore);
             }
 
@@ -235,7 +267,7 @@ namespace IdleMine
         /// <summary>Cash per second this layer is currently producing from its miners.</summary>
         public double LayerIncome(MineLayer layer)
         {
-            return layer.Miners * layer.OrePerMinerPerSecond * layer.ValuePerOre * Yield(layer);
+            return (layer.Miners + DrillWorkers(layer.Index)) * layer.OrePerMinerPerSecond * layer.ValuePerOre * Yield(layer);
         }
 
         /// <summary>Sells ore, advances the breakthrough bar. Returns the cash earned.</summary>
@@ -250,7 +282,7 @@ namespace IdleMine
 
             if (!layer.Cleared)
             {
-                layer.Progress += ore * _digSpeed;
+                layer.Progress += ore * _digSpeed * DrillBoreFactor(layer.Index);
                 if (layer.Progress >= layer.OreRequired)
                 {
                     layer.Progress = layer.OreRequired;
@@ -281,6 +313,7 @@ namespace IdleMine
         {
             if (layerIndex < 0 || layerIndex >= Layers.Count) return new TapResult { Layer = -1 };
             TotalTaps++;
+            if (OverclockUnlocked && !OverclockActive) _overclockMeter = Math.Min(1.0, _overclockMeter + 0.002);
             return DoTap(Layers[layerIndex], 1, false);
         }
 
@@ -372,23 +405,59 @@ namespace IdleMine
 
         public bool CanAfford(SkillNode n) { return Money >= GetCost(n); }
 
+        /// <summary>Open for purchase in its tree. The Deep Core's first node also needs the Deep Core unlocked and
+        /// this run's skill tree complete.</summary>
+        public bool IsNodeAvailable(SkillNode n)
+        {
+            if (n == null || n.Owner == null || !n.Owner.IsAvailable(n)) return false;
+            if (n.Owner == DeepTree && n == DeepTree.Root && (!DeepCoreUnlocked || !Tree.IsComplete)) return false;
+            return true;
+        }
+
         public bool CanPurchase(SkillNode n)
         {
-            return n != null && Tree.IsAvailable(n) && CanAfford(n);
+            return IsNodeAvailable(n) && CanAfford(n);
         }
 
         public bool TryPurchase(SkillNode n)
         {
             if (!CanPurchase(n)) return false;
             Money -= GetCost(n);
-            Tree.Unlock(n);
+            n.Owner.Unlock(n);
 
             int minersBefore = TotalMiners, slotsBefore = SlotsPerLayer;
             RecalculateStats();
             if (TotalMiners != minersBefore || SlotsPerLayer != slotsBefore) PlaceFreeMiners();
 
             if (NodePurchased != null) NodePurchased(n);
+            if (!DeepCoreUnlocked && n.Owner == Tree && Tree.IsComplete)
+            {
+                DeepCoreUnlocked = true;
+                Save();
+                if (DeepCoreOpened != null) DeepCoreOpened();
+            }
             return true;
+        }
+
+        /// <summary>BUY ALL (after the Deep Core is unlocked): buys every affordable node in the normal skill tree,
+        /// cheapest first, until the money runs out. Returns how many were bought.</summary>
+        public int BuyAllSkills()
+        {
+            int bought = 0;
+            while (true)
+            {
+                SkillNode best = null;
+                double bestCost = double.MaxValue;
+                foreach (var n in Tree.Nodes)
+                {
+                    if (!Tree.IsAvailable(n)) continue;
+                    double c = GetCost(n);
+                    if (c < bestCost) { best = n; bestCost = c; }
+                }
+                if (best == null || !TryPurchase(best)) break;
+                bought++;
+            }
+            return bought;
         }
 
         /// <summary>Banks exactly one Paragon level, then wipes money, miners, the skill tree and Paragon perks
@@ -477,6 +546,100 @@ namespace IdleMine
             RecalculateStats();
         }
 
+        // ================================================================== Deep Core mechanics
+
+        // Drill rigs sit on the deepest layers and dig like DrillPower miners each, without taking a slot.
+        public int DrillsActive { get { return Math.Min(Layers.Count, (int)Math.Floor(Stats.Get(StatType.DrillCount) + 1e-6)); } }
+        public bool HasDrill(int layerIndex) { return layerIndex >= Layers.Count - DrillsActive; }
+        double DrillWorkers(int layerIndex) { return HasDrill(layerIndex) ? Stats.Get(StatType.DrillPower) : 0; }
+        // Drills also bore through rock: every ore dug on a drilled layer (by miners, taps or the drill) counts
+        // this many times toward breaking through. Drills drive depth; auto-tap stays a cash source.
+        public double DrillBoreFactor(int layerIndex) { return HasDrill(layerIndex) ? 1.0 + Stats.Get(StatType.DrillBore) : 1.0; }
+
+        // ---- dynamite
+        public bool DynamiteUnlocked { get { return Stats.Get(StatType.DynamitePower) > 0; } }
+        public float DynamiteChargeSeconds { get { return Config.dynamiteChargeSeconds / (float)Math.Max(0.1, Stats.Get(StatType.DynamiteCharge)); } }
+        public float DynamiteCooldownSeconds { get { return Config.dynamiteCooldownSeconds * (float)(1.0 - Stats.Get(StatType.DynamiteCooldownCut)); } }
+        public float DynamiteCooldownLeft { get { return Mathf.Max(0f, _dynamiteReadyAt - Time.unscaledTime); } }
+        public bool DynamiteReady { get { return DynamiteUnlocked && DynamiteCooldownLeft <= 0f; } }
+
+        /// <summary>Detonates on a layer. charge is 0..1 (how long the fuse was held). A full blast is worth
+        /// DynamitePower seconds of income, spread over the layers it hits: the centre layer gets the biggest
+        /// share and each layer further out (within DynamiteRadius) gets dynamiteFalloff times less. The ore
+        /// still counts toward breakthroughs, so blasting the frontier digs deeper too.</summary>
+        public BlastResult Blast(int layerIndex, float charge)
+        {
+            var result = new BlastResult { Center = layerIndex, Charge = charge };
+            if (!DynamiteReady || layerIndex < 0 || layerIndex >= Layers.Count) return result;
+            _dynamiteReadyAt = Time.unscaledTime + DynamiteCooldownSeconds;
+            int radius = (int)Math.Floor(Stats.Get(StatType.DynamiteRadius) + 1e-6);
+            double total = IncomeForMinutes(Stats.Get(StatType.DynamitePower) / 60.0) * Mathf.Clamp01(charge);
+            int count = Layers.Count, lo = Math.Max(0, layerIndex - radius), hi = Math.Min(count - 1, layerIndex + radius);
+            double weights = 0;
+            for (int i = lo; i <= hi; i++) weights += Math.Pow(Config.dynamiteFalloff, Math.Abs(i - layerIndex));
+            for (int i = lo; i <= hi; i++)
+            {
+                var layer = Layers[i];
+                double share = total * Math.Pow(Config.dynamiteFalloff, Math.Abs(i - layerIndex)) / weights;
+                double cash = AddOre(layer, share / Math.Max(1e-300, layer.ValuePerOre));
+                result.Layers.Add(i);
+                result.Money += cash;
+            }
+            result.Detonated = true;
+            if (Blasted != null) Blasted(result);
+            return result;
+        }
+
+        // ---- gems and power swings
+        public bool GemsUnlocked { get { return Stats.Get(StatType.GemRate) > 0; } }
+        public bool SwingsUnlocked { get { return Stats.Get(StatType.SwingRate) > 0; } }
+
+        public double CollectGem()
+        {
+            double amount = IncomeForMinutes(Stats.Get(StatType.GemValue));
+            GrantMoney(amount);
+            return amount;
+        }
+
+        /// <summary>quality 1 = perfect, partial for a near miss, 0 = miss. A perfect swing strikes the frontier
+        /// layer for SwingPower seconds of income (as ore, so it also digs).</summary>
+        public double PowerSwing(double quality)
+        {
+            if (quality <= 0) return 0;
+            var layer = Frontier;
+            double cash = IncomeForMinutes(Stats.Get(StatType.SwingPower) / 60.0) * quality;
+            return AddOre(layer, cash / Math.Max(1e-300, layer.ValuePerOre));
+        }
+
+        // ---- overclock
+        public bool OverclockUnlocked { get { return Stats.Get(StatType.OverclockPower) > 0; } }
+        public double OverclockMeter { get { return _overclockMeter; } }
+        public bool OverclockActive { get { return _overclockApplied; } }
+        public float OverclockSecondsLeft { get { return Mathf.Max(0f, _overclockEndsAt - Time.unscaledTime); } }
+
+        public bool ActivateOverclock()
+        {
+            if (!OverclockUnlocked || OverclockActive || _overclockMeter < 1.0) return false;
+            _overclockMeter = 0;
+            _overclockEndsAt = Time.unscaledTime + (float)Stats.Get(StatType.OverclockDuration);
+            _overclockPowerAtStart = Stats.Get(StatType.OverclockPower);
+            _overclockApplied = true;
+            RecalculateStats();
+            if (OverclockStarted != null) OverclockStarted();
+            return true;
+        }
+
+        void UpdateOverclock(float dt)
+        {
+            if (_overclockApplied)
+            {
+                if (Time.unscaledTime >= _overclockEndsAt) { _overclockApplied = false; RecalculateStats(); }
+                return;
+            }
+            if (OverclockUnlocked)
+                _overclockMeter = Math.Min(1.0, _overclockMeter + dt * Stats.Get(StatType.OverclockCharge) / Math.Max(1f, Config.overclockChargeSeconds));
+        }
+
         // ================================================================== derived numbers
 
         void RecalculateStats()
@@ -484,6 +647,9 @@ namespace IdleMine
             ApplyBaseStats();
             Stats.ClearModifiers();
             foreach (var n in Tree.Nodes)
+                if (n.Unlocked)
+                    foreach (var e in n.Effects) Stats.Apply(e);
+            foreach (var n in DeepTree.Nodes)
                 if (n.Unlocked)
                     foreach (var e in n.Effects) Stats.Apply(e);
             foreach (var p in _ownedPerks)
@@ -502,6 +668,7 @@ namespace IdleMine
             // Same for the ad boost and the Foreman Pass perk, which live outside the tree.
             if (_boostApplied) Stats.Apply(new SkillEffect(StatType.OreValue, ModOp.Multiply, Config.boostMultiplier));
             if (ForemanPass) Stats.Apply(new SkillEffect(StatType.OfflineEfficiency, ModOp.Percent, Config.foremanOfflineBonus));
+            if (_overclockApplied) Stats.Apply(new SkillEffect(StatType.OreValue, ModOp.Multiply, 1.0 + _overclockPowerAtStart));
 
             _digSpeed = Stats.Get(StatType.DigSpeed);
             _critChance = Stats.Get(StatType.CritChance);
@@ -580,11 +747,13 @@ namespace IdleMine
                 totalTaps = TotalTaps,
                 paragonLevel = ParagonLevel,
                 runMoney = _runMoney,
+                deepCoreUnlocked = DeepCoreUnlocked,
                 boostEndUtcTicks = BoostEndUtcTicks,
                 lastSaveUtcTicks = DateTime.UtcNow.Ticks,
             };
             foreach (var l in Layers) d.layers.Add(new LayerSave { progress = l.Progress, miners = l.Miners });
             foreach (var n in Tree.Nodes) if (n.Unlocked) d.unlockedNodes.Add(n.Id);
+            foreach (var n in DeepTree.Nodes) if (n.Unlocked) d.unlockedNodes.Add(n.Id);
             foreach (var p in _ownedPerks) d.paragonPerks.Add(p.Id);
             SaveSystem.Save(d);
         }
@@ -614,11 +783,13 @@ namespace IdleMine
                 if (perk != null && _ownedPerks.Add(perk)) ParagonPointsSpent += perk.Cost;
             }
 
+            DeepCoreUnlocked = s.deepCoreUnlocked;
             Tree.ResetOwnership();
+            DeepTree.ResetOwnership();
             foreach (var id in s.unlockedNodes)
             {
-                var n = Tree.Get(id);
-                if (n != null) Tree.Unlock(n);
+                var n = Tree.Get(id) ?? DeepTree.Get(id);
+                if (n != null) n.Owner.Unlock(n);
             }
 
             Layers.Clear();
@@ -697,6 +868,57 @@ namespace IdleMine
         }
 
         void OnApplicationQuit() { Save(); }
+
+#if UNITY_EDITOR || DEVELOPMENT_BUILD || IDLEMINE_DEBUG
+        // ================================================================== debug tools (used by DebugMenu)
+
+        public void DebugGrantMoney(double amount) { GrantMoney(amount); }
+
+        /// <summary>Owns every node in a tree for free. Completing the skill tree unlocks the Deep Core as normal.</summary>
+        public void DebugUnlockTree(SkillTree tree)
+        {
+            if (tree == DeepTree) DeepCoreUnlocked = true;
+            foreach (var n in tree.Nodes) tree.Unlock(n);
+            RecalculateStats();
+            PlaceFreeMiners();
+            if (tree == Tree && !DeepCoreUnlocked)
+            {
+                DeepCoreUnlocked = true;
+                if (DeepCoreOpened != null) DeepCoreOpened();
+            }
+            Save();
+        }
+
+        public void DebugUnlockDeepCore() { DeepCoreUnlocked = true; Save(); }
+
+        /// <summary>Adds Paragon levels without resetting the run.</summary>
+        public void DebugAddParagonLevels(int levels)
+        {
+            ParagonLevel = Math.Max(0, ParagonLevel + levels);
+            RecalculateStats();
+            Save();
+        }
+
+        public void DebugFillParagonProgress() { _runMoney = Math.Max(_runMoney, NextParagonCost); }
+
+        /// <summary>Pretends the player was away for this long (shows the Welcome back popup).</summary>
+        public void DebugSimulateOffline(double seconds)
+        {
+            SimulateOffline(DateTime.UtcNow.Ticks - (long)(seconds * TimeSpan.TicksPerSecond));
+        }
+
+        public void DebugFillOverclock() { _overclockMeter = 1.0; }
+        public void DebugResetDynamite() { _dynamiteReadyAt = 0f; }
+
+        /// <summary>Deletes the save (and ad/purchase state) and reloads the scene for a brand new game.</summary>
+        public void DebugWipeAndRestart()
+        {
+            _initialized = false; // stop any save from rewriting it
+            SaveSystem.Delete();
+            MonetizationStore.Delete();
+            UnityEngine.SceneManagement.SceneManager.LoadScene(UnityEngine.SceneManagement.SceneManager.GetActiveScene().buildIndex);
+        }
+#endif
 
         // ================================================================== debug helpers (right-click the component)
 

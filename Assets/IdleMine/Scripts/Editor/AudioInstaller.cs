@@ -38,6 +38,13 @@ namespace IdleMine.EditorTools
             new Def(Sfx.Reward, 0.7f, 0f, 0.3f, "sfx_reward"),
             new Def(Sfx.Cart, 0.55f, 0f, 0.5f, "sfx_cart"),
             new Def(Sfx.Ascend, 0.9f, 0f, 1f, "sfx_ascend"),
+            new Def(Sfx.Fuse, 0.6f, 0.05f, 0.3f, "sfx_fuse"),
+            new Def(Sfx.Boom, 1f, 0.06f, 0.2f, "sfx_boom"),
+            new Def(Sfx.Gem, 0.7f, 0.04f, 0.1f, "sfx_gem"),
+            new Def(Sfx.Overclock, 0.85f, 0f, 0.5f, "sfx_overclock"),
+            new Def(Sfx.SwingHit, 0.95f, 0.03f, 0.1f, "sfx_swing_hit"),
+            new Def(Sfx.SwingMiss, 0.6f, 0f, 0.1f, "sfx_swing_miss"),
+            new Def(Sfx.Perfect, 1f, 0f, 0.2f, "sfx_perfect"),
         };
 
         [MenuItem("Idle Mine/Audio/Install In Open Scene")]
@@ -55,7 +62,9 @@ namespace IdleMine.EditorTools
             }
 
             int built = 0;
-            if (Object.FindObjectOfType<AudioManager>(true) == null) { BuildAudio(game, ads); built++; }
+            var existing = Object.FindObjectOfType<AudioManager>(true);
+            if (existing == null) { BuildAudio(game, ads); built++; }
+            else if (EnsureSounds(existing) > 0) built++; // newer sounds added since it was installed
 
             var settings = Object.FindObjectOfType<SettingsPopup>(true);
             if (settings == null) { settings = BuildSettingsPopup(safeArea.transform, ads); built++; }
@@ -98,6 +107,34 @@ namespace IdleMine.EditorTools
 
             Set(hooks, "game", game);
             if (ads != null) Set(hooks, "ads", ads);
+        }
+
+        /// <summary>Adds any sounds missing from an already-installed AudioManager (newer Sfx entries).
+        /// Returns how many were added.</summary>
+        public static int EnsureSounds(AudioManager manager)
+        {
+            var so = new SerializedObject(manager);
+            var list = so.FindProperty("sounds");
+            var have = new System.Collections.Generic.HashSet<int>();
+            for (int i = 0; i < list.arraySize; i++) have.Add(list.GetArrayElementAtIndex(i).FindPropertyRelative("id").enumValueIndex);
+            int added = 0;
+            foreach (var d in Defaults)
+            {
+                if (have.Contains((int)d.Id)) continue;
+                list.arraySize++;
+                var e = list.GetArrayElementAtIndex(list.arraySize - 1);
+                e.FindPropertyRelative("id").enumValueIndex = (int)d.Id;
+                e.FindPropertyRelative("volume").floatValue = d.Volume;
+                e.FindPropertyRelative("pitchJitter").floatValue = d.Jitter;
+                e.FindPropertyRelative("minInterval").floatValue = d.Interval;
+                var clips = e.FindPropertyRelative("clips");
+                clips.arraySize = d.Files.Length;
+                for (int c = 0; c < d.Files.Length; c++)
+                    clips.GetArrayElementAtIndex(c).objectReferenceValue = Clip(d.Files[c]);
+                added++;
+            }
+            so.ApplyModifiedPropertiesWithoutUndo();
+            return added;
         }
 
         static AudioClip Clip(string name)

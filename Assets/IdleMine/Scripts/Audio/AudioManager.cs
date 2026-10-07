@@ -4,7 +4,8 @@ using UnityEngine;
 namespace IdleMine
 {
     /// <summary>Every sound effect in the game. Each one maps to one or more clips on AudioManager.</summary>
-    public enum Sfx { Click, Dig, Crit, Coins, Purchase, Keystone, Deny, Breakthrough, Motherlode, Reward, Cart, Ascend }
+    public enum Sfx { Click, Dig, Crit, Coins, Purchase, Keystone, Deny, Breakthrough, Motherlode, Reward, Cart, Ascend,
+                      Fuse, Boom, Gem, Overclock, SwingHit, SwingMiss, Perfect }
 
     [Serializable]
     public class SfxEntry

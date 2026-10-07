@@ -239,7 +239,7 @@ namespace IdleMine
         // ================================================================== debug helpers (right-click the component)
 
         [ContextMenu("Debug/Toggle Foreman Pass")]
-        void DebugTogglePass()
+        public void DebugTogglePass()
         {
             bool owned = !game.ForemanPass;
             MonetizationStore.Data.foremanPass = owned;
@@ -249,7 +249,7 @@ namespace IdleMine
         }
 
         [ContextMenu("Debug/Reset ad caps and cooldowns")]
-        void DebugResetCaps()
+        public void DebugResetCaps()
         {
             var d = MonetizationStore.Data;
             d.adsToday = 0;

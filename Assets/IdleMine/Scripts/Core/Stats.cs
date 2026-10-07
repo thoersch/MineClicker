@@ -19,6 +19,23 @@ namespace IdleMine
         OfflineEfficiency, // fraction of normal speed while away
         OfflineCapHours,   // max hours of offline progress
         SkillDiscount,     // fraction off skill costs
+
+        // Deep Core mechanics. Each is zero (off) until its branch's first node is bought.
+        DynamitePower,       // a full-charge blast is worth this many seconds of income
+        DynamiteRadius,      // extra layers a blast reaches on each side
+        DynamiteCharge,      // fuse speed multiplier
+        DynamiteCooldownCut, // fraction off the blast cooldown
+        GemRate,             // gem veins appearing per minute
+        GemValue,            // minutes of income per gem
+        DrillCount,          // drill rigs (on the deepest layers)
+        DrillPower,          // each drill digs like this many miners
+        OverclockPower,      // extra production while overclocked (+100% = 1)
+        OverclockDuration,   // seconds an overclock lasts
+        OverclockCharge,     // overclock meter fill-speed multiplier
+        SwingPower,          // a perfect power swing is worth this many seconds of income
+        SwingWindow,         // width of the perfect zone, as a fraction of the bar
+        SwingRate,           // power swing chances per minute
+        DrillBore,           // drilled layers break through (1 + this) times faster
     }
 
     /// <summary>
@@ -51,7 +68,7 @@ namespace IdleMine
 
         public static bool IsWholeNumber(StatType t)
         {
-            return t == StatType.MinerCount || t == StatType.LayerSlots;
+            return t == StatType.MinerCount || t == StatType.LayerSlots || t == StatType.DrillCount || t == StatType.DynamiteRadius;
         }
     }
 
@@ -108,6 +125,8 @@ namespace IdleMine
                 case StatType.CritChance: return Math.Min(v, 0.75);
                 case StatType.SkillDiscount: return Math.Min(v, 0.75);
                 case StatType.OfflineEfficiency: return Math.Min(v, 1.0);
+                case StatType.DynamiteCooldownCut: return Math.Min(v, 0.8);
+                case StatType.SwingWindow: return Math.Min(v, 0.45);
                 default: return Math.Max(0, v);
             }
         }
@@ -133,6 +152,19 @@ namespace IdleMine
                 case StatType.OfflineEfficiency: return "+" + NumberFormat.Percent(e.value) + " Offline Earnings";
                 case StatType.OfflineCapHours: return "+" + e.value + "h Offline Time Cap";
                 case StatType.SkillDiscount: return "-" + NumberFormat.Percent(e.value) + " Skill Costs";
+                case StatType.DynamitePower: return "Dynamite blasts worth +" + NumberFormat.Format(e.value) + "s of income";
+                case StatType.DynamiteRadius: return "Dynamite reaches +" + e.value + " layer" + (e.value == 1 ? "" : "s") + " each way";
+                case StatType.DynamiteCooldownCut: return "-" + NumberFormat.Percent(e.value) + " Dynamite Cooldown";
+                case StatType.GemRate: return "+" + NumberFormat.Format(e.value) + " Gem Vein" + (e.value == 1 ? "" : "s") + " per minute";
+                case StatType.GemValue: return "Gems worth +" + NumberFormat.Format(e.value) + " min of income";
+                case StatType.DrillCount: return "+" + e.value + " Drill Rig" + (e.value == 1 ? "" : "s");
+                case StatType.DrillPower: return "Drills dig like +" + NumberFormat.Format(e.value) + " miners";
+                case StatType.OverclockPower: return "+" + NumberFormat.Percent(e.value) + " production while Overclocked";
+                case StatType.OverclockDuration: return "+" + NumberFormat.Format(e.value) + "s Overclock duration";
+                case StatType.SwingPower: return "Perfect Swings worth +" + NumberFormat.Format(e.value) + "s of income";
+                case StatType.SwingWindow: return "+" + NumberFormat.Percent(e.value) + " Perfect Swing zone";
+                case StatType.SwingRate: return "+" + NumberFormat.Format(e.value) + " Power Swing" + (e.value == 1 ? "" : "s") + " per minute";
+                case StatType.DrillBore: return "Drilled layers break through +" + NumberFormat.Percent(e.value) + " faster";
                 default: return "+" + NumberFormat.Format(e.value) + " " + name;
             }
         }
@@ -154,6 +186,21 @@ namespace IdleMine
                 case StatType.OfflineEfficiency: return "Offline Earnings";
                 case StatType.OfflineCapHours: return "Offline Cap";
                 case StatType.SkillDiscount: return "Skill Discount";
+                case StatType.DynamitePower: return "Blast Power";
+                case StatType.DynamiteRadius: return "Blast Radius";
+                case StatType.DynamiteCharge: return "Fuse Speed";
+                case StatType.DynamiteCooldownCut: return "Dynamite Cooldown";
+                case StatType.GemRate: return "Gem Veins";
+                case StatType.GemValue: return "Gem Value";
+                case StatType.DrillCount: return "Drill Rigs";
+                case StatType.DrillPower: return "Drill Power";
+                case StatType.OverclockPower: return "Overclock Boost";
+                case StatType.OverclockDuration: return "Overclock Duration";
+                case StatType.OverclockCharge: return "Overclock Charge Speed";
+                case StatType.SwingPower: return "Swing Power";
+                case StatType.SwingWindow: return "Perfect Zone";
+                case StatType.SwingRate: return "Power Swings";
+                case StatType.DrillBore: return "Drill Bore Speed";
             }
             return t.ToString();
         }
@@ -176,6 +223,21 @@ namespace IdleMine
                 case StatType.OfflineEfficiency: return "ZZZ";
                 case StatType.OfflineCapHours: return "ZZZ";
                 case StatType.SkillDiscount: return "%";
+                case StatType.DynamitePower: return "TNT";
+                case StatType.DynamiteRadius: return "BOOM";
+                case StatType.DynamiteCharge: return "FUSE";
+                case StatType.DynamiteCooldownCut: return "TNT";
+                case StatType.GemRate: return "GEM";
+                case StatType.GemValue: return "GEM";
+                case StatType.DrillCount: return "+" + e.value;
+                case StatType.DrillPower: return "DRILL";
+                case StatType.OverclockPower: return "OC";
+                case StatType.OverclockDuration: return "OC";
+                case StatType.OverclockCharge: return "OC";
+                case StatType.SwingPower: return "SWING";
+                case StatType.SwingWindow: return "ZONE";
+                case StatType.SwingRate: return "SWING";
+                case StatType.DrillBore: return "BORE";
             }
             return "?";
         }

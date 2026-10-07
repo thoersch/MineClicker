@@ -23,6 +23,7 @@ namespace IdleMine
         public int paragonLevel;
         public long boostEndUtcTicks;
         public double runMoney;
+        public bool deepCoreUnlocked;   // permanent; Deep Core node ids (prefix "d") share unlockedNodes
         public List<string> paragonPerks = new List<string>();
         public List<LayerSave> layers = new List<LayerSave>();
         public List<string> unlockedNodes = new List<string>();

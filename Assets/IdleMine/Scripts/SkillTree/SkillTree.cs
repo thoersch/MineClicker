@@ -23,6 +23,7 @@ namespace IdleMine
         public readonly List<SkillNode> Children = new List<SkillNode>();
 
         public bool Unlocked;
+        public SkillTree Owner;          // the tree this node belongs to (set by SkillTree)
 
         public string Description
         {
@@ -54,6 +55,7 @@ namespace IdleMine
         public readonly SkillNode Root;
         public readonly Rect Bounds;
         public int UnlockedCount { get; private set; }
+        public bool IsComplete { get { return UnlockedCount >= Nodes.Count; } }
 
         readonly Dictionary<string, SkillNode> _byId = new Dictionary<string, SkillNode>();
 
@@ -67,6 +69,7 @@ namespace IdleMine
             foreach (var n in nodes)
             {
                 _byId[n.Id] = n;
+                n.Owner = this;
                 minX = Mathf.Min(minX, n.Position.x); maxX = Mathf.Max(maxX, n.Position.x);
                 minY = Mathf.Min(minY, n.Position.y); maxY = Mathf.Max(maxY, n.Position.y);
             }

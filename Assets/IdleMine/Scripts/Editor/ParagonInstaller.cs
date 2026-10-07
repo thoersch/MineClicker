@@ -29,6 +29,7 @@ namespace IdleMine.EditorTools
                 MonetizationInstaller.Install();
                 AudioInstaller.Install();
                 Install();
+                DeepCoreInstaller.Install();
             }
             finally { Quiet = false; }
             const string msg = "All Idle Mine UI is installed. Save the scene (Ctrl+S) to keep any new pieces.";

@@ -61,6 +61,14 @@ namespace IdleMine
             button.onClick.AddListener(() => onClick(this));
         }
 
+        /// <summary>Swaps the node art (the Deep Core uses hexagons instead of circles).</summary>
+        public void SetShape(Sprite fillSprite, Sprite ringSprite)
+        {
+            fill.sprite = fillSprite;
+            glow.sprite = fillSprite;
+            if (ringSprite != null) ring.sprite = ringSprite;
+        }
+
         /// <summary>Returns true when the node just came out of the fog (caller can celebrate it).</summary>
         public bool Apply(NodeState state, double cost)
         {

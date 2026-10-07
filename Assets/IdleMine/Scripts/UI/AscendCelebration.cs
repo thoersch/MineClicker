@@ -39,24 +39,41 @@ namespace IdleMine
         void Start()
         {
             game.Ascended += OnAscended;
+            game.DeepCoreOpened += OnDeepCoreOpened;
             overlay.gameObject.SetActive(false);
         }
 
         void OnDestroy()
         {
-            if (game != null) game.Ascended -= OnAscended;
+            if (game == null) return;
+            game.Ascended -= OnAscended;
+            game.DeepCoreOpened -= OnDeepCoreOpened;
+        }
+
+        // The first time a run completes the whole skill tree.
+        void OnDeepCoreOpened()
+        {
+            Show("UNLOCKED", "THE DEEP CORE",
+                 "<size=50>500+ new upgrades below the skill tree</size>\n<size=30>Dynamite, gem veins, drill rigs, overclock & power swings</size>",
+                 "Open it from the skill tree. BUY ALL now rebuys the tree in one tap");
         }
 
         void OnAscended(int levels)
         {
             int level = game.ParagonLevel;
             double before = System.Math.Pow(1.0 + game.Config.paragonMultiplierPerLevel, level - 1);
-            kickerText.text = "ASCENDED";
-            levelText.text = "PARAGON " + level;
-            multiplierText.text = NumberFormat.Multiplier(before) + "  ›  " + NumberFormat.Multiplier(game.ParagonMultiplier)
-                                  + "\n<size=30>Ore Value, Miner Speed, Tap Power & Dig Speed, forever</size>";
-            pointsText.text = game.ParagonPoints + " Paragon Point" + (game.ParagonPoints == 1 ? "" : "s")
-                              + " to spend in the Paragon Tree this run";
+            Show("ASCENDED", "PARAGON " + level,
+                 NumberFormat.Multiplier(before) + "  \u203A  " + NumberFormat.Multiplier(game.ParagonMultiplier)
+                 + "\n<size=30>Ore Value, Miner Speed, Tap Power & Dig Speed, forever</size>",
+                 game.ParagonPoints + " Paragon Point" + (game.ParagonPoints == 1 ? "" : "s") + " to spend in the Paragon Tree this run");
+        }
+
+        void Show(string kicker, string title, string middle, string footer)
+        {
+            kickerText.text = kicker;
+            levelText.text = title;
+            multiplierText.text = middle;
+            pointsText.text = footer;
 
             transform.SetAsLastSibling();
             overlay.gameObject.SetActive(true);

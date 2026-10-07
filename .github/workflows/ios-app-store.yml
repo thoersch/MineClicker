@@ -19,6 +19,11 @@ name: iOS build to App Store Connect
 
 on:
   workflow_dispatch:
+    inputs:
+      debug_tools:
+        description: "Include debug tools (TestFlight testing only, never submit to the App Store)"
+        type: boolean
+        default: false
   push:
     tags: ['v*']
 
@@ -56,6 +61,7 @@ jobs:
           targetPlatform: iOS
           buildName: iOS
           buildMethod: IdleMine.EditorTools.CiBuild.BuildIos
+          customParameters: ${{ inputs.debug_tools && '-debugTools' || '' }}
 
       - name: Pack Xcode project
         run: sudo tar -czf xcode-project.tar.gz -C build/iOS iOS

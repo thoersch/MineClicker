@@ -81,6 +81,9 @@ namespace IdleMine
             Feedback.Play(Sfx.Cart);
         }
 
+        /// <summary>Debug/testing: send an ore cart or a Motherlode chest right now.</summary>
+        public void ForceSpawn(bool chest) { Spawn(chest ? Kind.Chest : Kind.Cart); }
+
         void Despawn()
         {
             if (_kind == Kind.Cart) ScheduleCart();

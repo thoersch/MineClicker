@@ -21,6 +21,16 @@ namespace IdleMine.EditorTools
             if (new Version(PlayerSettings.iOS.targetOSVersionString) < new Version(MinIosVersion))
                 PlayerSettings.iOS.targetOSVersionString = MinIosVersion;
 
+            // -debugTools (the workflow's "Include debug tools" checkbox) compiles in the DebugMenu.
+            // Never submit a build made this way to the App Store.
+            if (Array.IndexOf(Environment.GetCommandLineArgs(), "-debugTools") >= 0)
+            {
+                var target = UnityEditor.Build.NamedBuildTarget.iOS;
+                string defines = PlayerSettings.GetScriptingDefineSymbols(target);
+                if (!defines.Contains("IDLEMINE_DEBUG")) PlayerSettings.SetScriptingDefineSymbols(target, defines + ";IDLEMINE_DEBUG");
+                Debug.Log("[IdleMine] Debug tools ON for this build");
+            }
+
             string path = Arg("-customBuildPath") ?? "build/iOS/iOS";
             var report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
             {

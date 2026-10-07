@@ -59,6 +59,30 @@ namespace IdleMine
         public float treeTierSpacing = 170f;
         public int treeSeed = 1337;
 
+        [Header("Deep Core (prestige tree past the skill tree)")]
+        [Tooltip("Cost of 'Breach the Core'. Should sit just past the normal tree's last keystones.")]
+        public double deepRootCost = 5e27;
+        [Tooltip("Cost of a tier-1 Deep Core node.")]
+        public double deepBaseCost = 1e28;
+        [Tooltip("Each Deep Core tier outward costs this many times more.")]
+        public double deepCostGrowth = 3.2;
+        [Tooltip("Seconds between dynamite blasts before upgrades.")]
+        public float dynamiteCooldownSeconds = 20f;
+        [Tooltip("Seconds to charge a fuse fully before Fuse Speed upgrades.")]
+        public float dynamiteChargeSeconds = 1.5f;
+        [Tooltip("Hold this long before a press becomes a fuse instead of a tap.")]
+        public float dynamiteHoldDelay = 0.3f;
+        [Tooltip("Each layer further from the blast gets this fraction of the one before.")]
+        [Range(0f, 1f)] public float dynamiteFalloff = 0.6f;
+        public float gemLifetimeSeconds = 8f;
+        [Tooltip("Seconds of play to fill the overclock meter before Charge Speed upgrades.")]
+        public float overclockChargeSeconds = 120f;
+        public float swingLifetimeSeconds = 7f;
+        [Tooltip("Marker sweeps across the power swing bar this many times per second.")]
+        public float swingSpeed = 0.9f;
+        [Tooltip("Seconds after a power swing appears before taps count, so a tap meant for a layer isn't an instant miss.")]
+        public float swingArmSeconds = 0.6f;
+
         [Header("Offline progress")]
         [Range(0f, 1f)] public float baseOfflineEfficiency = 0.25f;
         public float baseOfflineCapHours = 2f;

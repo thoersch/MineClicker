@@ -128,6 +128,33 @@ The only direct `Input` call is the Android back button closing the tree, and it
 
 **Install or update all UI:** open `Main.unity`, click **Idle Mine > Install All UI In Open Scene**, then save the scene. This runs the monetization, audio and Paragon installers together. Pieces that already exist are left alone.
 
+## The Deep Core (prestige tree)
+
+**Unlocking it.** The first time a run buys all 538 skills, the Deep Core unlocks permanently, with its own full-screen celebration.
+
+**The tree.** It's a second tree of 537 nodes: same radial layout, molten theme, hexagon nodes (`SkillTree/DeepCoreRecipe.cs`).
+* Like the skill tree, it resets every run and costs cash.
+* Its first node, Breach the Core, needs that run's skill tree complete.
+* Open it with the DEEP CORE button on the skill tree; the panel flips over like a card.
+
+**The five mechanics.** Each branch's first node switches one on, and everything after it in that branch makes it stronger:
+
+| Branch | Mechanic | How it plays |
+|---|---|---|
+| Demolition | Dynamite | Hold a layer to light the fuse, release to blast. Worth about 25 s of income at full charge, spread over nearby layers. Has a cooldown. |
+| Gemcraft | Gem veins | Glowing gems appear in the mine. Tap one before it fades for minutes of income. |
+| Drillworks | Drill rigs | Drills dig the deepest layers on their own, without using miner slots, and drilled layers break through 3x faster (Bore Speed upgrades raise it). Drills drive depth; auto-tap stays a cash source. |
+| Overdrive | Overclock | A gauge fills as you play. When full, tap it for a burst of extra production. |
+| Timing | Power swings | A bar appears with a marker sweeping past a gold zone. Tap in the gold for a big strike, worth about 60 s of income. |
+
+The sixth branch, Core, adds raw multipliers.
+
+**BUY ALL.** Once the Deep Core is unlocked, the skill tree gets a BUY ALL button that buys every affordable skill, cheapest first.
+
+**Tuning.** Costs and mechanic settings are under **Deep Core** in GameConfig. Edit the node effects in `DeepCoreRecipe`. Both trees share `SkillTreeGenerator`'s layout through `TreeRecipe`.
+
+**Install:** run **Idle Mine > Install All UI In Open Scene** (or **Idle Mine > Deep Core > Install In Open Scene**), then save the scene.
+
 ## Ads & purchases
 
 Rewarded ads only, always opt-in: no banners and no forced interstitials. Each ad button shows an "AD" tag so a player knows before tapping that a video will play. A button hides itself when no ad is loaded, when a cooldown is running, or once the daily cap is reached.
