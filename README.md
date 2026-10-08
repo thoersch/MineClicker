@@ -141,7 +141,7 @@ The only direct `Input` call is the Android back button closing the tree, and it
 
 | Branch | Mechanic | How it plays |
 |---|---|---|
-| Demolition | Dynamite | Hold a layer to light the fuse, release to blast. Worth about 25 s of income at full charge, spread over nearby layers. Has a cooldown. |
+| Demolition | Dynamite | Hold a layer to light the fuse: the whole row becomes a burning timer racing toward a TNT stick (so your thumb never hides it). Release to blast. Worth about 25 s of income at full charge, spread over nearby layers. Has a cooldown. |
 | Gemcraft | Gem veins | Glowing gems appear in the mine. Tap one before it fades for minutes of income. |
 | Drillworks | Drill rigs | Drills dig the deepest layers on their own, without using miner slots, and drilled layers break through 3x faster (Bore Speed upgrades raise it). Drills drive depth; auto-tap stays a cash source. |
 | Overdrive | Overclock | A gauge fills as you play. When full, tap it for a burst of extra production. |

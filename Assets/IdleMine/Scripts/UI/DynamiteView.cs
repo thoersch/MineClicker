@@ -5,8 +5,9 @@ using UnityEngine.UI;
 namespace IdleMine
 {
     /// <summary>
-    /// Dynamite (Deep Core, Demolition branch). Press and hold a layer: after a short beat the fuse lights, a ring
-    /// fills under your finger and sparks fly. Release to blast: a white flash, a shockwave, a storm of rubble,
+    /// Dynamite (Deep Core, Demolition branch). Press and hold a layer: after a short beat the fuse lights and the
+    /// whole row becomes the timer, so a thumb can't hide it (see FuseBar). Release to blast where the spark has
+    /// burned to: a white flash, a shockwave, a storm of rubble,
     /// screen shake, a boom and a heavy haptic. Short presses stay normal taps; dragging cancels (so scrolling
     /// still works). Shows a small "TNT" status line while dynamite is unlocked.
     /// LayerRowView forwards its pointer down/up here.
@@ -32,8 +33,10 @@ namespace IdleMine
 
         State _state;
         int _pointerId, _row;
+        LayerRowView _rowView;
+        FuseBar _bar;
         Vector2 _downScreen;
-        float _t, _charge, _sparkTimer, _tickTimer;
+        float _t, _charge, _tickTimer;
         float _fxT = -1f, _shakeT = -1f;
         Vector2 _shakeBase, _blastAt;
 
@@ -62,6 +65,7 @@ namespace IdleMine
             _state = State.Pending;
             _pointerId = e.pointerId;
             _row = row.Layer.Index;
+            _rowView = row;
             _downScreen = e.position;
             _t = 0f;
             _charge = 0f;
@@ -73,8 +77,9 @@ namespace IdleMine
             if (_state == State.Charging)
             {
                 float charge = Mathf.Max(0.25f, _charge);
+                // The blast goes off where the spark has burned to.
+                _blastAt = _bar != null && _bar.Lit ? fx.WorldToLocal(_bar.HeadWorld) : fx.ScreenToLocal(_downScreen, CanvasCamera);
                 Cancel();
-                _blastAt = fx.ScreenToLocal(_downScreen, CanvasCamera);
                 game.Blast(_row, charge);
                 return true;
             }
@@ -87,6 +92,7 @@ namespace IdleMine
             _state = State.Idle;
             fuseRing.gameObject.SetActive(false);
             fuseGlow.gameObject.SetActive(false);
+            if (_bar != null) _bar.Hide();
         }
 
         // Null for an overlay canvas (the game's normal setup), the canvas camera otherwise.
@@ -130,21 +136,17 @@ namespace IdleMine
             }
             else if (_state == State.Charging)
             {
+                // The row was recycled for another layer (scrolled away): drop the fuse.
+                if (_rowView == null || !_rowView.isActiveAndEnabled || _rowView.Layer == null || _rowView.Layer.Index != _row) { Cancel(); return; }
+                float before = _charge;
                 _charge = Mathf.Min(1f, _charge + dt / Mathf.Max(0.05f, game.DynamiteChargeSeconds));
-                Vector2 at = fx.ScreenToLocal(_downScreen, CanvasCamera);
-                fuseRing.rectTransform.anchoredPosition = at;
-                fuseGlow.rectTransform.anchoredPosition = at;
-                fuseRing.fillAmount = _charge;
-                float pulse = 1f + 0.08f * Mathf.Sin(Time.unscaledTime * (10f + 20f * _charge));
-                fuseGlow.rectTransform.localScale = Vector3.one * (0.6f + 0.8f * _charge) * pulse;
-                fuseRing.color = Color.Lerp(Palette.Gold, Palette.Hex("FF5A36"), _charge);
-
-                _sparkTimer -= dt;
-                if (_sparkTimer <= 0f) { _sparkTimer = 0.05f; fx.SpawnChips(at, Random.value < 0.5f ? Palette.Gold : Palette.Orange, 2); }
+                if (before < 1f && _charge >= 1f) { _bar.Punch(); Haptics.Play(Haptic.Heavy); }
+                _bar.Animate(_charge, dt);
                 _tickTimer -= dt;
                 if (_tickTimer <= 0f) { _tickTimer = _charge >= 1f ? 0.12f : 0.25f; Haptics.Play(_charge >= 1f ? Haptic.Rigid : Haptic.Light); }
             }
 
+            if (_bar != null) _bar.Tick(dt);
             AnimateBlast(dt);
         }
 
@@ -152,11 +154,12 @@ namespace IdleMine
         {
             _state = State.Charging;
             _charge = 0f;
-            _sparkTimer = 0f;
             _tickTimer = 0f;
-            fuseRing.gameObject.SetActive(true);
-            fuseGlow.gameObject.SetActive(true);
-            fuseRing.transform.SetAsLastSibling();
+            var rowRt = (RectTransform)_rowView.transform;
+            if (_bar == null) _bar = new FuseBar((RectTransform)fx.transform, _rowView.GetComponentInChildren<Text>(true).font);
+            Vector2 finger;
+            RectTransformUtility.ScreenPointToLocalPointInRectangle(rowRt, _downScreen, CanvasCamera, out finger);
+            _bar.Attach(rowRt, finger.x > rowRt.rect.center.x);
             Feedback.Play(Sfx.Fuse);
         }
 
