@@ -224,6 +224,7 @@ namespace IdleMine
         void Update()
         {
             if (!_initialized) return;
+            CheckDeepCoreUnlock();
             SyncBoost();
             UpdateOverclock(Time.unscaledDeltaTime);
             Tick(Time.deltaTime, true);
@@ -430,13 +431,19 @@ namespace IdleMine
             if (TotalMiners != minersBefore || SlotsPerLayer != slotsBefore) PlaceFreeMiners();
 
             if (NodePurchased != null) NodePurchased(n);
-            if (!DeepCoreUnlocked && n.Owner == Tree && Tree.IsComplete)
-            {
-                DeepCoreUnlocked = true;
-                Save();
-                if (DeepCoreOpened != null) DeepCoreOpened();
-            }
+            CheckDeepCoreUnlock();
             return true;
+        }
+
+        /// <summary>Opens the Deep Core the first time the whole skill tree is owned. Runs after every purchase and
+        /// every frame, so a save that finished the tree before the Deep Core existed still gets it (and the
+        /// celebration) on its next launch.</summary>
+        void CheckDeepCoreUnlock()
+        {
+            if (DeepCoreUnlocked || !Tree.IsComplete) return;
+            DeepCoreUnlocked = true;
+            Save();
+            if (DeepCoreOpened != null) DeepCoreOpened();
         }
 
         /// <summary>BUY ALL (after the Deep Core is unlocked): buys every affordable node in the normal skill tree,
