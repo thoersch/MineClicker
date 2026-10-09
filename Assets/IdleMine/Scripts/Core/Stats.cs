@@ -27,7 +27,7 @@ namespace IdleMine
         DynamiteCooldownCut, // fraction off the blast cooldown
         GemRate,             // gem veins appearing per minute
         GemValue,            // minutes of income per gem
-        DrillCount,          // drill rigs (on the deepest layers)
+        DrillCount,          // drill rigs (all on the frontier, stacking)
         DrillPower,          // each drill digs like this many miners
         OverclockPower,      // extra production while overclocked (+100% = 1)
         OverclockDuration,   // seconds an overclock lasts
@@ -35,7 +35,7 @@ namespace IdleMine
         SwingPower,          // a perfect power swing is worth this many seconds of income
         SwingWindow,         // width of the perfect zone, as a fraction of the bar
         SwingRate,           // power swing chances per minute
-        DrillBore,           // drilled layers break through (1 + this) times faster
+        DrillBore,           // each drill makes the frontier break through this much faster (1 + bore x drills)
     }
 
     /// <summary>
@@ -157,14 +157,14 @@ namespace IdleMine
                 case StatType.DynamiteCooldownCut: return "-" + NumberFormat.Percent(e.value) + " Dynamite Cooldown";
                 case StatType.GemRate: return "+" + NumberFormat.Format(e.value) + " Gem Vein" + (e.value == 1 ? "" : "s") + " per minute";
                 case StatType.GemValue: return "Gems worth +" + NumberFormat.Format(e.value) + " min of income";
-                case StatType.DrillCount: return "+" + e.value + " Drill Rig" + (e.value == 1 ? "" : "s");
-                case StatType.DrillPower: return "Drills dig like +" + NumberFormat.Format(e.value) + " miners";
+                case StatType.DrillCount: return "+" + e.value + " Drill Rig" + (e.value == 1 ? "" : "s") + " on the deepest layer";
+                case StatType.DrillPower: return "Each drill digs like +" + NumberFormat.Format(e.value) + " miners";
                 case StatType.OverclockPower: return "+" + NumberFormat.Percent(e.value) + " production while Overclocked";
                 case StatType.OverclockDuration: return "+" + NumberFormat.Format(e.value) + "s Overclock duration";
                 case StatType.SwingPower: return "Perfect Swings worth +" + NumberFormat.Format(e.value) + "s of income";
                 case StatType.SwingWindow: return "+" + NumberFormat.Percent(e.value) + " Perfect Swing zone";
                 case StatType.SwingRate: return "+" + NumberFormat.Format(e.value) + " Power Swing" + (e.value == 1 ? "" : "s") + " per minute";
-                case StatType.DrillBore: return "Drilled layers break through +" + NumberFormat.Percent(e.value) + " faster";
+                case StatType.DrillBore: return "Each drill: +" + NumberFormat.Percent(e.value) + " breakthrough speed";
                 default: return "+" + NumberFormat.Format(e.value) + " " + name;
             }
         }

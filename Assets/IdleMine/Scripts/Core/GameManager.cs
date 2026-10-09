@@ -126,6 +126,7 @@ namespace IdleMine
         public event Action MinersChanged;
         public event Action<int> Ascended; // arg = Paragon levels gained
         public event Action<ParagonPerk> PerkPurchased;
+        public event Action<MineLayer> DrilledThrough;  // the drills broke through a layer (before the next one opens)
         public event Action DeepCoreOpened;          // first time the skill tree is completed
         public event Action<BlastResult> Blasted;     // a dynamite blast went off
         public event Action OverclockStarted;
@@ -287,6 +288,7 @@ namespace IdleMine
                 if (layer.Progress >= layer.OreRequired)
                 {
                     layer.Progress = layer.OreRequired;
+                    if (HasDrill(layer.Index) && DrilledThrough != null) DrilledThrough(layer);
                     OnLayerCleared(layer);
                 }
             }
@@ -555,13 +557,28 @@ namespace IdleMine
 
         // ================================================================== Deep Core mechanics
 
-        // Drill rigs sit on the deepest layers and dig like DrillPower miners each, without taking a slot.
-        public int DrillsActive { get { return Math.Min(Layers.Count, (int)Math.Floor(Stats.Get(StatType.DrillCount) + 1e-6)); } }
-        public bool HasDrill(int layerIndex) { return layerIndex >= Layers.Count - DrillsActive; }
-        double DrillWorkers(int layerIndex) { return HasDrill(layerIndex) ? Stats.Get(StatType.DrillPower) : 0; }
-        // Drills also bore through rock: every ore dug on a drilled layer (by miners, taps or the drill) counts
-        // this many times toward breaking through. Drills drive depth; auto-tap stays a cash source.
-        public double DrillBoreFactor(int layerIndex) { return HasDrill(layerIndex) ? 1.0 + Stats.Get(StatType.DrillBore) : 1.0; }
+        // Drill rigs all work the frontier (the deepest layer) and stack: each digs like DrillPower miners without
+        // taking a slot, and each adds DrillBore to how fast the layer breaks through, so every ore dug there (by
+        // miners, taps or drills) counts that many times toward the breakthrough. Drills drive depth; auto-tap stays
+        // a cash source. Overclock boosts both, on top of its ore value boost.
+        public int DrillsActive { get { return (int)Math.Floor(Stats.Get(StatType.DrillCount) + 1e-6); } }
+        public bool HasDrill(int layerIndex) { return DrillsActive > 0 && layerIndex == Layers.Count - 1; }
+        double DrillOverclock { get { return _overclockApplied ? 1.0 + _overclockPowerAtStart : 1.0; } }
+        double DrillWorkers(int layerIndex) { return HasDrill(layerIndex) ? Stats.Get(StatType.DrillPower) * DrillsActive * DrillOverclock : 0; }
+        public double DrillBoreFactor(int layerIndex) { return HasDrill(layerIndex) ? 1.0 + Stats.Get(StatType.DrillBore) * DrillsActive * DrillOverclock : 1.0; }
+
+        /// <summary>Cash per second the drills alone are producing on this layer.</summary>
+        public double DrillIncome(MineLayer layer) { return DrillWorkers(layer.Index) * layer.OrePerMinerPerSecond * layer.ValuePerOre * Yield(layer); }
+
+        /// <summary>Seconds until this layer breaks through from miners and drills (taps not counted), with or without
+        /// the drills' help. Infinity when nothing is digging.</summary>
+        public double BreakthroughSeconds(MineLayer layer, bool withDrills)
+        {
+            if (layer.Cleared) return 0;
+            double workers = layer.Miners + (withDrills ? DrillWorkers(layer.Index) : 0);
+            double rate = workers * layer.OrePerMinerPerSecond * _digSpeed * (withDrills ? DrillBoreFactor(layer.Index) : 1.0);
+            return rate > 0 ? (layer.OreRequired - layer.Progress) / rate : double.PositiveInfinity;
+        }
 
         // ---- dynamite
         public bool DynamiteUnlocked { get { return Stats.Get(StatType.DynamitePower) > 0; } }

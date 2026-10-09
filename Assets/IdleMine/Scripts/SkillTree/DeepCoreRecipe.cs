@@ -10,7 +10,7 @@ namespace IdleMine
     /// mechanic stronger:
     ///   Demolition  - dynamite: hold a layer to charge, release to blast
     ///   Gemcraft    - glowing gem veins to tap for big payouts
-    ///   Drillworks  - drill rigs that dig the deepest layers on their own
+    ///   Drillworks  - drill rigs that stack on the deepest layer, digging and speeding up breakthroughs
     ///   Overdrive   - an overclock meter that fills as you play, then a burst of extra production
     ///   Timing      - power swings: hit the gold zone at the right moment for a huge strike
     /// Dynamite and power swings pay in seconds of income, so they stay meaningful however rich the mine gets.
@@ -71,7 +71,7 @@ namespace IdleMine
             {
                 case 0: return "Unlocks dynamite: hold a layer to light the fuse, release to blast.";
                 case 1: return "Unlocks gem veins: glowing gems appear in the mine. Tap them before they fade.";
-                case 2: return "Unlocks drill rigs: a drill digs the deepest layer and breaks through it 3x faster.";
+                case 2: return "Unlocks drill rigs: drills work the deepest layer, and each one makes it break through faster (x3 with one, x5 with two...).";
                 case 3: return "Unlocks overclock: fill the meter, then tap for a burst of extra production.";
                 case 4: return "Unlocks power swings: tap when the marker crosses the gold zone for a huge strike.";
                 default: return null;

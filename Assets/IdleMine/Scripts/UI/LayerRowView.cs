@@ -39,6 +39,8 @@ namespace IdleMine
         [SerializeField] Text progressText;
         [SerializeField] Color progressColor = new Color(1f, 0.78f, 0.27f, 1f);
         [SerializeField] Color clearedColor = new Color(0.42f, 0.88f, 0.48f, 0.55f);
+        [Tooltip("Bar colour while drills work the layer (gold while overclocked). Animated stripes run over it.")]
+        [SerializeField] Color drillColor = new Color(1f, 0.55f, 0.18f, 1f);
 
         [Header("Miners")]
         [SerializeField] GameObject slotsArea;
@@ -62,6 +64,8 @@ namespace IdleMine
         int _row = -1;
         int _shownMiners = -1, _shownSlots = -1;
         Color _countNormal;
+        RawImage _drillStripes;
+        float _stripeSpeed;
 
         public int RowIndex { get { return _row; } }
         public MineLayer Layer { get; private set; }
@@ -151,11 +155,26 @@ namespace IdleMine
                 progressFill.color = clearedColor;
                 progressText.text = "CLEARED  \u00B7  still producing";
             }
+            else if (_game.HasDrill(l.Index))
+            {
+                // Drills: orange striped bar plus what they're worth in time.
+                bool oc = _game.OverclockActive;
+                double factor = _game.DrillBoreFactor(l.Index);
+                double with = _game.BreakthroughSeconds(l, true), without = _game.BreakthroughSeconds(l, false);
+                progressFill.color = oc ? Palette.Gold : drillColor;
+                string tag = (oc ? "OVERCLOCKED DRILLS" : "DRILLS") + " \u00D7" + NumberFormat.Format(factor) + " SPEED";
+                string eta = double.IsInfinity(with) ? "" : "  \u00B7  through in " + NumberFormat.Time(with);
+                string saves = double.IsInfinity(without) ? "  \u00B7  <color=#B6FFBF>drills do all the digging</color>"
+                             : without - with >= 1 ? "  \u00B7  <color=#B6FFBF>saves " + NumberFormat.Time(without - with) + "</color>" : "";
+                progressText.text = "<color=#FFE2B0>" + tag + "</color>" + eta + saves;
+                _stripeSpeed = (0.5f + 0.35f * Mathf.Log((float)factor, 2f)) * (oc ? 2f : 1f);
+            }
             else
             {
                 progressFill.color = progressColor;
                 progressText.text = NumberFormat.Format(l.Progress) + " / " + NumberFormat.Format(l.OreRequired) + " to break through";
             }
+            SetDrillStripes(!l.Cleared && _game.HasDrill(l.Index));
 
             int slots = _game.SlotsPerLayer;
             bool canAdd = l.Miners < slots && _game.FreeMiners > 0;
@@ -165,6 +184,24 @@ namespace IdleMine
             minusButton.interactable = l.Miners > 0;
 
             if (l.Miners != _shownMiners || slots != _shownSlots) RefreshSlots(l.Miners, slots);
+        }
+
+        void SetDrillStripes(bool on)
+        {
+            if (!on) { if (_drillStripes != null && _drillStripes.gameObject.activeSelf) _drillStripes.gameObject.SetActive(false); return; }
+            if (_drillStripes == null)
+            {
+                var go = new GameObject("Drill Stripes", typeof(RectTransform), typeof(RawImage));
+                var rt = (RectTransform)go.transform;
+                rt.SetParent(progressFill.transform, false);
+                rt.anchorMin = Vector2.zero; rt.anchorMax = Vector2.one;
+                rt.offsetMin = rt.offsetMax = Vector2.zero;
+                _drillStripes = go.GetComponent<RawImage>();
+                _drillStripes.texture = Resources.Load<Texture2D>("Drill/DrillStripes");
+                _drillStripes.color = new Color(1f, 0.93f, 0.75f, 0.35f);
+                _drillStripes.raycastTarget = false;
+            }
+            if (!_drillStripes.gameObject.activeSelf) _drillStripes.gameObject.SetActive(true);
         }
 
         static string RichnessTag(MineLayer l)
@@ -208,6 +245,12 @@ namespace IdleMine
             var fill = progressFill.rectTransform;
             float frac = (float)Layer.ProgressFraction;
             if (Mathf.Abs(fill.anchorMax.x - frac) > 0.0005f) fill.anchorMax = new Vector2(frac, 1);
+            if (_drillStripes != null && _drillStripes.gameObject.activeSelf)
+            {
+                // Stripes keep a fixed size and march toward the breakthrough, faster with stronger drills.
+                var r = fill.rect;
+                _drillStripes.uvRect = new Rect(-time * _stripeSpeed, 0f, r.width / 40f, Mathf.Max(1f, r.height) / 40f);
+            }
 
             for (int i = 0; i < figures.Count; i++)
             {

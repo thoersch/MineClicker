@@ -143,7 +143,7 @@ The only direct `Input` call is the Android back button closing the tree, and it
 |---|---|---|
 | Demolition | Dynamite | Hold a layer to light the fuse: the whole row becomes a burning timer racing toward a TNT stick (so your thumb never hides it). Release to blast. Worth about 25 s of income at full charge, spread over nearby layers. Has a cooldown. |
 | Gemcraft | Gem veins | Glowing gems appear in the mine. Tap one before it fades for minutes of income. |
-| Drillworks | Drill rigs | Drills dig the deepest layers on their own, without using miner slots, and drilled layers break through 3x faster (Bore Speed upgrades raise it). Drills drive depth; auto-tap stays a cash source. |
+| Drillworks | Drill rigs | Every drill works the deepest layer, without using miner slots. They stack: each one digs like extra miners and adds to the breakthrough speed (x3 with one drill, x5 with two, raised by Bore Speed). Overclock boosts both. The layer's bar turns orange and striped and shows the speed-up and the time saved. Drills drive depth; auto-tap stays a cash source. |
 | Overdrive | Overclock | A gauge fills as you play. When full, tap it for a burst of extra production. |
 | Timing | Power swings | A bar appears with a marker sweeping past a gold zone. Tap in the gold for a big strike, worth about 60 s of income. |
 
