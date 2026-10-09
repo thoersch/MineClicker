@@ -119,7 +119,7 @@ namespace IdleMine
         public float cartMinIntervalSeconds = 240f;
         public float cartMaxIntervalSeconds = 480f;
         [Tooltip("Seconds the cart takes to roll across the screen. Miss it and it's gone.")]
-        public float cartLifetimeSeconds = 14f;
+        public float cartLifetimeSeconds = 2f;
         [Tooltip("Minutes of income for just tapping the cart.")]
         public float cartFreeMinutes = 2f;
         [Tooltip("Minutes of income for watching an ad instead.")]

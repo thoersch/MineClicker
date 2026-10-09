@@ -34,10 +34,40 @@ MonoBehaviour:
   treeInnerRadius: 320
   treeTierSpacing: 170
   treeSeed: 1337
+  deepRootCost: 5e+27
+  deepBaseCost: 1e+28
+  deepCostGrowth: 3.2
+  dynamiteCooldownSeconds: 20
+  dynamiteChargeSeconds: 1.5
+  dynamiteHoldDelay: 0.3
+  dynamiteFalloff: 0.6
+  gemLifetimeSeconds: 8
+  overclockChargeSeconds: 120
+  swingLifetimeSeconds: 7
+  swingSpeed: 0.9
+  swingArmSeconds: 0.6
   baseOfflineEfficiency: 0.25
   baseOfflineCapHours: 2
   minOfflineSeconds: 30
   paragonBaseRequirement: 1000000
   paragonRequirementGrowth: 8
   paragonMultiplierPerLevel: 0.25
+  adsEnabled: 1
+  adGraceMinutes: 6
+  adDailyCap: 25
+  rewardFloorTapsPerSecond: 2
+  boostMultiplier: 2
+  boostMinutesPerAd: 30
+  boostMaxHours: 4
+  cartMinIntervalSeconds: 240
+  cartMaxIntervalSeconds: 480
+  cartLifetimeSeconds: 2.5
+  cartFreeMinutes: 2
+  cartAdMinutes: 15
+  chestAdMinutes: 30
+  chestLifetimeSeconds: 60
+  skillAssistThreshold: 0.7
+  skillAssistCooldownMinutes: 5
+  foremanPassProductId: foreman_pass_iap
+  foremanOfflineBonus: 0.5
   autosaveSeconds: 10

@@ -9,6 +9,7 @@ namespace IdleMine
     ///    It shows up even when no ad is available (then the free payout is paid straight away).
     ///  * Motherlode Chest: waits in the corner after you reach a Motherlode, as an ad-only reward.
     /// Lives on a non-blocking rect laid over the mine; the bubble child's Button is wired to Tapped().
+    /// The cart and chest art is built in code by BonusVisitorArt (the bubble itself is just the tap target).
     /// The cart timer pauses while the skill tree or a popup covers the mine, so it's never wasted.
     /// </summary>
     public class BonusBubble : MonoBehaviour
@@ -26,9 +27,9 @@ namespace IdleMine
         [SerializeField] RectTransform bubble;
         [SerializeField] Image bubbleImage;
         [SerializeField] Text bubbleLabel;
-        [SerializeField] float bobAmount = 14f;
 
         RectTransform _area;
+        BonusVisitorArt _art;
         Kind _kind;
         float _age, _life, _nextCart, _y;
 
@@ -70,8 +71,8 @@ namespace IdleMine
             var cfg = game.Config;
             _life = kind == Kind.Cart ? cfg.cartLifetimeSeconds : cfg.chestLifetimeSeconds;
             _y = Random.Range(-0.25f, 0.25f) * _area.rect.height;
-            bubbleLabel.text = kind == Kind.Cart ? "ORE\nCART" : "CHEST";
-            bubbleImage.color = kind == Kind.Cart ? Palette.Gold : Palette.Orange;
+            if (_art == null) _art = new BonusVisitorArt(bubble, bubbleImage, bubbleLabel, _area);
+            _art.Show(kind == Kind.Cart);
             bubble.localScale = Vector3.one;
             bubble.localRotation = Quaternion.identity;
             bubble.SetAsLastSibling();
@@ -96,6 +97,7 @@ namespace IdleMine
             float dt = Time.unscaledDeltaTime;
             if (_kind == Kind.None)
             {
+                if (_art != null) _art.TickDust(dt);
                 if (!Covered) _nextCart -= dt;
                 if (_nextCart <= 0f) Spawn(Kind.Cart);
                 return;
@@ -103,22 +105,22 @@ namespace IdleMine
             if (!Covered) _age += dt;
             if (_age >= _life) { Despawn(); return; }
             Position();
+            _art.Animate(_age, dt);
         }
 
         void Position()
         {
             Rect r = _area.rect;
-            float bob = Mathf.Sin(_age * 5f) * bobAmount;
+            // The art does its own rattling and hopping; the bubble just travels.
             if (_kind == Kind.Cart)
             {
                 float margin = bubble.rect.width;
                 float x = Mathf.Lerp(r.xMin - margin, r.xMax + margin, _age / _life);
-                bubble.anchoredPosition = new Vector2(x, _y + bob);
-                bubble.localRotation = Quaternion.Euler(0, 0, Mathf.Sin(_age * 9f) * 4f);
+                bubble.anchoredPosition = new Vector2(x, _y);
             }
             else
             {
-                bubble.anchoredPosition = new Vector2(r.xMin + bubble.rect.width * 0.5f + 40f, r.yMin + bubble.rect.height * 0.5f + 140f + bob);
+                bubble.anchoredPosition = new Vector2(r.xMin + bubble.rect.width * 0.5f + 40f, r.yMin + bubble.rect.height * 0.5f + 140f);
                 // Fade out over the last few seconds so it doesn't just vanish.
                 float fade = Mathf.Clamp01((_life - _age) / 4f);
                 bubble.localScale = new Vector3(fade, fade, 1f);
