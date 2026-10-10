@@ -98,7 +98,7 @@ namespace IdleMine.EditorTools
             var kicker = Label("Kicker", titleGroup, "ASCENDED", 46, Palette.Text, Centered(new Vector2(0, 110), new Vector2(1000, 70), 0.5f), true);
             var level = Label("Level", titleGroup, "PARAGON 1", 132, Palette.Gold, Centered(new Vector2(0, -10), new Vector2(1000, 170), 0.5f), true);
             var mult = Label("Multiplier", overlay, "×1  ›  ×1.25", 64, Palette.Text, Centered(new Vector2(0, -170), new Vector2(1000, 160), 0.5f), true);
-            var points = Label("Points", overlay, "1 Paragon Point to spend in the Paragon Tree this run", 34, Palette.Hex("C9A8FF"), Centered(new Vector2(0, -330), new Vector2(980, 60), 0.5f), false);
+            var points = Label("Points", overlay, "+1 Paragon Point  ·  your perks are kept  ·  1 to spend", 34, Palette.Hex("C9A8FF"), Centered(new Vector2(0, -330), new Vector2(980, 60), 0.5f), false);
             var hint = Label("Tap Hint", overlay, "TAP TO CONTINUE", 38, Palette.Text, Bottom(150, new Vector2(800, 60)), false);
 
             var fxRoot = Stretch("Celebration Fx", overlay);
@@ -147,7 +147,7 @@ namespace IdleMine.EditorTools
             Img(header, null, NightPanel, false);
             var title = Label("Title", header, "PARAGON TREE", 56, Palette.Gold, Corner(new Vector2(36, -22), new Vector2(520, 70)), true);
             title.alignment = TextAnchor.UpperLeft;
-            var sub = Label("Subtitle", header, "Run-only perks  ·  reset when you ascend", 26, Palette.TextDim, Corner(new Vector2(38, -98), new Vector2(620, 40)), false);
+            var sub = Label("Subtitle", header, "Perks stay when you ascend  ·  respec free", 26, Palette.TextDim, Corner(new Vector2(38, -98), new Vector2(620, 40)), false);
             sub.alignment = TextAnchor.UpperLeft;
             var pts = Label("Points", header, "0 / 0 POINTS", 48, Palette.Gold, new Layout { AnchorMin = new Vector2(1, 0.5f), AnchorMax = new Vector2(1, 0.5f), Pivot = new Vector2(1, 0.5f), Pos = new Vector2(-160, 0), Size = new Vector2(380, 80) }, true);
             pts.alignment = TextAnchor.MiddleRight;

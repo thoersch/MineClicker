@@ -65,7 +65,7 @@ namespace IdleMine
             Show("ASCENDED", "PARAGON " + level,
                  NumberFormat.Multiplier(before) + "  \u203A  " + NumberFormat.Multiplier(game.ParagonMultiplier)
                  + "\n<size=30>Ore Value, Miner Speed, Tap Power & Dig Speed, forever</size>",
-                 game.ParagonPoints + " Paragon Point" + (game.ParagonPoints == 1 ? "" : "s") + " to spend in the Paragon Tree this run");
+                 "+1 Paragon Point  ·  your perks are kept  ·  " + game.ParagonPointsAvailable + " to spend");
         }
 
         void Show(string kicker, string title, string middle, string footer)

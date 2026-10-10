@@ -7,12 +7,13 @@ namespace IdleMine
 {
     /// <summary>
     /// The Paragon tree: the flip side of the skill tree. Deep purple and gold, diamond nodes, and Paragon
-    /// Points instead of cash. Perks unlock at rising Paragon levels, need the perk above them, and last for
-    /// this run only (ascending wipes them and refills the points).
+    /// Points instead of cash. Three endless lanes scroll vertically; tier N opens at Paragon N, every perk costs
+    /// one point, and a glowing line marks how far your level reaches. Perks are kept when you ascend; RESPEC
+    /// (tap twice) refunds them all for free.
     ///
     /// Its GameObject starts inactive in the scene and lays out on top of the skill tree. The skill tree's
     /// PARAGON TREE button calls FlipIn (the panels turn over like a card); this view's SKILL TREE button calls
-    /// FlipBack and X calls CloseAll. Nodes and edges are built in code from the perk table.
+    /// FlipBack and X calls CloseAll. Scrolling, nodes, edges, lane headers and the RESPEC button are built in code.
     /// </summary>
     public class ParagonTreeView : MonoBehaviour
     {
@@ -31,9 +32,11 @@ namespace IdleMine
             public ParagonPerk A, B;
         }
 
+        const float TopPad = 150f, BottomPad = 260f;
         static readonly Color Purple = Palette.Hex("8E5BFF");
         static readonly Color PurpleDim = Palette.Hex("3A2A5C");
         static readonly Color Locked = Palette.Hex("231A33");
+        static readonly Color[] LaneColors = { Palette.Hex("7FD1FF"), Palette.Gold, Palette.Hex("FF9A4D") };
 
         [SerializeField] GameManager game;
         [SerializeField] SkillTreeView skillTree;
@@ -67,7 +70,12 @@ namespace IdleMine
         readonly Dictionary<ParagonPerk, NodeView> _byPerk = new Dictionary<ParagonPerk, NodeView>();
         ParagonPerk _selected;
         bool _built, _flipping;
-        float _refreshTimer;
+        float _refreshTimer, _respecArmed;
+        RectTransform _content, _levelLine;
+        Text _levelText;
+        Image _levelImg;
+        GameObject _respec;
+        Text _respecLabel;
 
         public bool IsOpen { get { return gameObject.activeSelf; } }
 
@@ -79,8 +87,11 @@ namespace IdleMine
             gameObject.SetActive(true);
             transform.SetAsLastSibling();
             EnsureBuilt();
-            if (_selected == null) _selected = DefaultSelection();
+            BuildMissing();
+            if (_selected == null || game.OwnsPerk(_selected)) _selected = DefaultSelection();
+            _respecArmed = 0f;
             RefreshAll();
+            ScrollTo(_selected);
             StartCoroutine(Flip(skillTree.transform, transform, true));
         }
 
@@ -130,21 +141,31 @@ namespace IdleMine
 #if ENABLE_LEGACY_INPUT_MANAGER
             if (Input.GetKeyDown(KeyCode.Escape)) { FlipBack(); return; } // Android back button
 #endif
-            _refreshTimer -= Time.unscaledDeltaTime;
-            if (_refreshTimer <= 0f) { _refreshTimer = 0.25f; RefreshAll(); }
+            float dt = Time.unscaledDeltaTime;
+            _refreshTimer -= dt;
+            if (_refreshTimer <= 0f) { _refreshTimer = 0.25f; BuildMissing(); RefreshAll(); }
+
+            if (_respecArmed > 0f)
+            {
+                _respecArmed -= dt;
+                if (_respecArmed <= 0f) RefreshRespec();
+            }
 
             // Perks you can buy right now breathe gently.
+            float time = Time.unscaledTime;
             foreach (var v in _nodes)
             {
-                float bob = v.Affordable ? 1f + 0.05f * Mathf.Sin(Time.unscaledTime * 4f + v.Perk.Position.y) : 1f;
+                float bob = v.Affordable ? 1f + 0.06f * Mathf.Sin(time * 4f + v.Perk.Position.y * 0.01f) : 1f;
                 v.Diamond.localScale = new Vector3(bob, bob, 1f);
             }
 
             if (selection.gameObject.activeSelf)
             {
-                float pulse = 1f + 0.06f * Mathf.Sin(Time.unscaledTime * 6f);
+                float pulse = 1f + 0.06f * Mathf.Sin(time * 6f);
                 selection.localScale = new Vector3(pulse, pulse, 1f);
             }
+            if (_levelImg != null && _levelLine.gameObject.activeSelf)
+                _levelImg.color = Palette.WithAlpha(Purple, 0.55f + 0.3f * Mathf.Sin(time * 3f));
         }
 
         // ================================================================== build
@@ -153,44 +174,104 @@ namespace IdleMine
         {
             if (_built) return;
             _built = true;
-            var tree = game.ParagonTree;
 
-            // Fit the whole tree inside the board, whatever the screen shape.
-            float minY = float.MaxValue, maxY = float.MinValue;
-            foreach (var p in tree.Perks) { minY = Mathf.Min(minY, p.Position.y); maxY = Mathf.Max(maxY, p.Position.y); }
-            float needed = maxY - minY + capstoneSize + 90f;
-            float scale = Mathf.Min(1f, board.rect.height / needed);
-            nodesLayer.localScale = edgesLayer.localScale = new Vector3(scale, scale, 1f);
-            var offset = new Vector2(0, -(maxY + minY) * 0.5f);
+            // The board scrolls: a mask, a tall content rect, and both layers hung from its top centre.
+            if (board.GetComponent<RectMask2D>() == null) board.gameObject.AddComponent<RectMask2D>();
+            if (board.GetComponent<Image>() == null) board.gameObject.AddComponent<Image>().color = new Color(0, 0, 0, 0); // drag target
+            _content = (RectTransform)new GameObject("Content", typeof(RectTransform)).transform;
+            _content.SetParent(board, false);
+            _content.anchorMin = new Vector2(0f, 1f);
+            _content.anchorMax = new Vector2(1f, 1f);
+            _content.pivot = new Vector2(0.5f, 1f);
+            _content.anchoredPosition = Vector2.zero;
+            foreach (var layer in new[] { edgesLayer, nodesLayer })
+            {
+                layer.SetParent(_content, false);
+                layer.anchorMin = layer.anchorMax = new Vector2(0.5f, 1f);
+                layer.pivot = new Vector2(0.5f, 0.5f);
+                layer.anchoredPosition = new Vector2(0f, -TopPad);
+                layer.sizeDelta = Vector2.zero;
+                layer.localScale = Vector3.one;
+            }
+            var scroll = board.GetComponent<ScrollRect>();
+            if (scroll == null) scroll = board.gameObject.AddComponent<ScrollRect>();
+            scroll.content = _content;
+            scroll.viewport = board;
+            scroll.horizontal = false;
+            scroll.vertical = true;
+            scroll.movementType = ScrollRect.MovementType.Elastic;
+            scroll.scrollSensitivity = 40f;
 
-            foreach (var p in tree.Perks)
-                foreach (var parent in p.Parents)
-                    _edges.Add(MakeEdge(parent, p, offset));
-            foreach (var p in tree.Perks) MakeNode(p, offset);
+            // Lane headers above tier 1.
+            for (int lane = 0; lane < 3; lane++)
+            {
+                var h = NewText("Lane " + ParagonTree.LaneNames[lane], nodesLayer, ParagonTree.LaneNames[lane], 34, new Vector2((lane - 1) * ParagonTree.LaneX, 100f));
+                h.color = LaneColors[lane];
+                var o = h.gameObject.AddComponent<Outline>();
+                o.effectColor = new Color(0f, 0f, 0f, 0.6f);
+                o.effectDistance = new Vector2(2f, -2f);
+            }
+
+            // The reach line: everything above it is unlocked by your Paragon level.
+            _levelLine = (RectTransform)new GameObject("Level Line", typeof(RectTransform), typeof(Image)).transform;
+            _levelLine.SetParent(edgesLayer, false);
+            _levelLine.sizeDelta = new Vector2(1040f, 6f);
+            _levelImg = _levelLine.GetComponent<Image>();
+            _levelImg.raycastTarget = false;
+            // Label in the left margin, clear of the lanes and their tags.
+            _levelText = NewText("Level Text", _levelLine, "", 22, new Vector2(-520f + 4f, 18f));
+            _levelText.alignment = TextAnchor.LowerLeft;
+            _levelText.rectTransform.pivot = new Vector2(0f, 0.5f);
+            _levelText.color = Palette.Hex("C9A8FF");
 
             selection.SetParent(nodesLayer, false);
-            selection.SetAsLastSibling();
+            BuildRespec();
+
+            var sub = transform.Find("Header/Subtitle");
+            if (sub != null) sub.GetComponent<Text>().text = "Perks stay when you ascend  ·  respec free";
+
             game.PerkPurchased += OnPerkChanged;
-            game.Ascended += OnAscended;
+            game.PerksRespecced += OnRespecced;
         }
 
         void OnDestroy()
         {
-            if (game == null) return;
+            if (game == null || !_built) return;
             game.PerkPurchased -= OnPerkChanged;
-            game.Ascended -= OnAscended;
+            game.PerksRespecced -= OnRespecced;
         }
 
         void OnPerkChanged(ParagonPerk p) { RefreshAll(); }
 
-        void OnAscended(int levels) { _selected = null; }
+        void OnRespecced()
+        {
+            _selected = DefaultSelection();
+            RefreshAll();
+            ScrollTo(_selected);
+        }
 
-        EdgeView MakeEdge(ParagonPerk a, ParagonPerk b, Vector2 offset)
+        /// <summary>Adds nodes and edges for tiers the tree has grown since the view was built.</summary>
+        void BuildMissing()
+        {
+            if (!_built) return;
+            var tree = game.ParagonTree;
+            if (_byPerk.Count == tree.Perks.Count) return;
+            foreach (var p in tree.Perks)
+            {
+                if (_byPerk.ContainsKey(p)) continue;
+                foreach (var parent in p.Parents) _edges.Add(MakeEdge(parent, p));
+                MakeNode(p);
+            }
+            selection.SetAsLastSibling();
+            _content.sizeDelta = new Vector2(0f, TopPad + (tree.Tiers - 1) * ParagonTree.TierStep + BottomPad);
+        }
+
+        EdgeView MakeEdge(ParagonPerk a, ParagonPerk b)
         {
             var go = new GameObject("Edge " + a.Id + "-" + b.Id, typeof(RectTransform), typeof(Image));
             var rt = (RectTransform)go.transform;
             rt.SetParent(edgesLayer, false);
-            Vector2 pa = a.Position + offset, pb = b.Position + offset, d = pb - pa;
+            Vector2 pa = a.Position, pb = b.Position, d = pb - pa;
             rt.anchoredPosition = (pa + pb) * 0.5f;
             rt.sizeDelta = new Vector2(d.magnitude, 10f);
             rt.localRotation = Quaternion.Euler(0, 0, Mathf.Atan2(d.y, d.x) * Mathf.Rad2Deg);
@@ -199,13 +280,13 @@ namespace IdleMine
             return new EdgeView { Img = img, A = a, B = b };
         }
 
-        void MakeNode(ParagonPerk p, Vector2 offset)
+        void MakeNode(ParagonPerk p)
         {
             float size = p.Capstone ? capstoneSize : nodeSize;
             var root = new GameObject("Perk " + p.Id, typeof(RectTransform), typeof(Image), typeof(Button));
             var rt = (RectTransform)root.transform;
             rt.SetParent(nodesLayer, false);
-            rt.anchoredPosition = p.Position + offset;
+            rt.anchoredPosition = p.Position;
             rt.sizeDelta = new Vector2(size + 40f, size + 40f);
             root.GetComponent<Image>().color = new Color(0, 0, 0, 0); // generous invisible hit area
             var perk = p;
@@ -220,11 +301,61 @@ namespace IdleMine
             var rrt = ringImg.rectTransform;
             rrt.anchorMin = Vector2.zero; rrt.anchorMax = Vector2.one; rrt.sizeDelta = new Vector2(10, 10);
 
-            var glyph = NewText("Glyph", rt, p.Glyph, p.Capstone ? 38 : 28, Vector2.zero);
-            var tag = NewText("Tag", rt, "", 24, new Vector2(0, -size * 0.74f));
+            var glyph = NewText("Glyph", rt, p.Glyph, p.Capstone ? 36 : 28, Vector2.zero);
+            var tag = NewText("Tag", rt, "", 24, new Vector2(0, -size * 0.72f));
             var view = new NodeView { Perk = p, Root = rt, Diamond = diamond.rectTransform, Fill = diamond, Ring = ringImg, Glyph = glyph, Tag = tag };
             _nodes.Add(view);
             _byPerk[p] = view;
+        }
+
+        void BuildRespec()
+        {
+            // Bottom-right of the board, mirroring the SKILL TREE button.
+            var rt = (RectTransform)new GameObject("Respec Button", typeof(RectTransform), typeof(Image), typeof(Button)).transform;
+            rt.SetParent(transform, false);
+            rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(1f, 0f);
+            rt.anchoredPosition = new Vector2(-24f, 350f);
+            rt.sizeDelta = new Vector2(250f, 90f);
+            var img = rt.GetComponent<Image>();
+            img.sprite = rounded;
+            img.type = Image.Type.Sliced;
+            img.color = Palette.PanelLight;
+            rt.GetComponent<Button>().onClick.AddListener(OnRespecClicked);
+            _respecLabel = NewText("Label", rt, "RESPEC", 34, Vector2.zero);
+            var lr = _respecLabel.rectTransform;
+            lr.anchorMin = Vector2.zero; lr.anchorMax = Vector2.one; lr.sizeDelta = Vector2.zero;
+            _respec = rt.gameObject;
+            var fxLayer = fx != null ? fx.transform : null;
+            if (fxLayer != null && fxLayer.parent == transform) rt.SetSiblingIndex(fxLayer.GetSiblingIndex());
+        }
+
+        void OnRespecClicked()
+        {
+            if (_respecArmed <= 0f)
+            {
+                _respecArmed = 2.5f;
+                Feedback.Play(Sfx.Click);
+                Punch.Play(_respec.transform, 0.12f, 0.2f);
+                RefreshRespec();
+                return;
+            }
+            _respecArmed = 0f;
+            int refunded = game.ParagonPointsSpent;
+            if (!game.RespecPerks()) { RefreshRespec(); return; }
+            Punch.Play(_respec.transform, 0.3f, 0.35f);
+            fx.SpawnText(fx.WorldToLocal(_respec.transform.position) + new Vector2(-120f, 110f),
+                         "+" + refunded + " POINT" + (refunded == 1 ? "" : "S") + " BACK", Purple, 44, 1.3f, 160f);
+            RefreshRespec();
+        }
+
+        void RefreshRespec()
+        {
+            bool any = game.ParagonPointsSpent > 0;
+            if (_respec.activeSelf != any) _respec.SetActive(any);
+            bool armed = _respecArmed > 0f;
+            _respecLabel.text = armed ? "TAP AGAIN\n<size=24>refund all perks</size>" : "RESPEC\n<size=24>free</size>";
+            _respecLabel.color = armed ? Palette.Panel : Palette.Text;
+            _respec.GetComponent<Image>().color = armed ? Purple : Palette.PanelLight;
         }
 
         Image NewImage(string name, Transform parent, Sprite sprite, float size)
@@ -260,8 +391,20 @@ namespace IdleMine
 
         ParagonPerk DefaultSelection()
         {
+            // The shallowest perk you can buy right now, else the shallowest you can't reach yet.
             foreach (var p in game.ParagonTree.Perks) if (game.CanBuyPerk(p)) return p;
+            foreach (var p in game.ParagonTree.Perks) if (!game.OwnsPerk(p)) return p;
             return game.ParagonTree.Perks[0];
+        }
+
+        /// <summary>Scrolls the board so the perk sits a little above the middle.</summary>
+        void ScrollTo(ParagonPerk p)
+        {
+            if (p == null || !_built) return;
+            Canvas.ForceUpdateCanvases();
+            float viewH = board.rect.height, contentH = _content.sizeDelta.y;
+            float y = TopPad - p.Position.y - viewH * 0.4f;
+            _content.anchoredPosition = new Vector2(0f, Mathf.Clamp(y, 0f, Mathf.Max(0f, contentH - viewH)));
         }
 
         void RefreshAll()
@@ -279,11 +422,12 @@ namespace IdleMine
                 if (owned) { fill = Palette.Gold; ringC = Palette.Text; glyphC = Palette.Panel; }
                 else if (affordable) { fill = Purple; ringC = Palette.Gold; glyphC = Palette.Text; }
                 else if (available) { fill = PurpleDim; ringC = Purple; glyphC = Palette.TextDim; }
+                else if (levelOk) { fill = Locked; ringC = Purple; glyphC = Palette.TextDim; }
                 else { fill = Locked; ringC = PurpleDim; glyphC = Palette.WithAlpha(Palette.TextDim, 0.5f); }
                 v.Fill.color = fill;
                 v.Ring.color = ringC;
                 v.Glyph.color = glyphC;
-                v.Tag.text = owned ? "OWNED" : !levelOk ? "PARAGON " + p.RequiredLevel : p.Cost + (p.Cost == 1 ? " PT" : " PTS");
+                v.Tag.text = owned ? "OWNED" : !levelOk ? "PARAGON " + p.RequiredLevel : "1 PT";
                 v.Tag.color = owned ? Palette.Gold : affordable ? Palette.Text : Palette.TextDim;
                 v.Affordable = affordable;
             }
@@ -293,6 +437,19 @@ namespace IdleMine
                 bool lit = game.OwnsPerk(e.A) && game.OwnsPerk(e.B), half = game.OwnsPerk(e.A);
                 e.Img.color = lit ? Palette.Gold : half ? Palette.WithAlpha(Purple, 0.7f) : Palette.WithAlpha(PurpleDim, 0.8f);
             }
+
+            // Reach line between your level's tier and the next one.
+            int level = game.ParagonLevel;
+            bool showLine = level < game.ParagonTree.Tiers;
+            if (_levelLine.gameObject.activeSelf != showLine) _levelLine.gameObject.SetActive(showLine);
+            if (showLine)
+            {
+                // Just under tier `level`'s tags, above the next tier's diamonds.
+                _levelLine.anchoredPosition = new Vector2(0f, level == 0 ? 60f : -(level - 1) * ParagonTree.TierStep - 102f);
+                _levelText.text = level == 0 ? "ASCEND" : "PARAGON " + level;
+            }
+
+            RefreshRespec();
             RefreshSheet();
         }
 
@@ -315,13 +472,14 @@ namespace IdleMine
             float size = (p.Capstone ? capstoneSize : nodeSize) + 30f;
             selection.sizeDelta = new Vector2(size, size);
 
+            int lane = Mathf.Clamp(Mathf.RoundToInt(p.Position.x / ParagonTree.LaneX) + 1, 0, 2);
             nameText.text = p.Name;
-            kindText.text = (p.Capstone ? "CAPSTONE" : "PERK") + "  ·  NEEDS PARAGON " + p.RequiredLevel + "  ·  " + p.Cost + (p.Cost == 1 ? " POINT" : " POINTS");
-            descriptionText.text = p.Description + "\n<size=26><color=#A99FB8><i>" + p.Flavor + " This run only.</i></color></size>";
+            kindText.text = (p.Capstone ? "MAJOR PERK" : "PERK") + "  ·  " + ParagonTree.LaneNames[lane] + "  ·  NEEDS PARAGON " + p.RequiredLevel + "  ·  1 POINT";
+            descriptionText.text = p.Description + "\n<size=26><color=#A99FB8><i>" + p.Flavor + "</i></color></size>";
 
             if (game.OwnsPerk(p))
             {
-                statusText.text = "Active until you ascend";
+                statusText.text = "Owned  ·  kept when you ascend";
                 SetBuy("OWNED", Palette.PanelLight, Palette.Gold, false);
             }
             else if (game.ParagonLevel < p.RequiredLevel)
@@ -331,18 +489,18 @@ namespace IdleMine
             }
             else if (!game.IsPerkAvailable(p))
             {
-                statusText.text = p.Capstone ? "Needs both perks above it" : "Needs the perk above it";
+                statusText.text = "Needs the perk above it";
                 SetBuy("LOCKED", Palette.PanelLight, Palette.TextDim, false);
             }
             else if (!game.CanBuyPerk(p))
             {
-                statusText.text = "Not enough Paragon Points this run";
-                SetBuy("UNLOCK\n<size=30>" + p.Cost + " PTS</size>", Palette.PanelLight, Palette.TextDim, false);
+                statusText.text = "No points left  ·  ascend for another, or respec";
+                SetBuy("UNLOCK\n<size=30>1 PT</size>", Palette.PanelLight, Palette.TextDim, false);
             }
             else
             {
                 statusText.text = "Tap the perk again to unlock instantly";
-                SetBuy("UNLOCK\n<size=30>" + p.Cost + (p.Cost == 1 ? " PT" : " PTS") + "</size>", Palette.Gold, Palette.Panel, true);
+                SetBuy("UNLOCK\n<size=30>1 PT</size>", Palette.Gold, Palette.Panel, true);
             }
         }
 
@@ -364,6 +522,9 @@ namespace IdleMine
             Vector2 at = fx.WorldToLocal(v.Root.position);
             fx.SpawnChips(at, Palette.Gold, 22);
             fx.SpawnText(at + new Vector2(0, 100), StatText.Describe(p.Effects[0]), Palette.Gold, 46, 1.4f, 180f);
+            // Move on to the next perk down the same lane, so tapping keeps climbing.
+            foreach (var next in game.ParagonTree.Perks)
+                if (next.Parents.Contains(p) && game.CanBuyPerk(next)) { _selected = next; break; }
             RefreshAll();
         }
     }

@@ -87,10 +87,10 @@ namespace IdleMine
         /// <summary>Permanent: set the first time a run completes the whole skill tree. Never reset.</summary>
         public bool DeepCoreUnlocked { get; private set; }
 
-        /// <summary>The Paragon tree's perks (run-only, bought with Paragon Points).</summary>
+        /// <summary>The Paragon tree's perks (bought with Paragon Points, kept across ascensions, free to respec).</summary>
         public ParagonTree ParagonTree { get; private set; }
 
-        /// <summary>Paragon Points for this run: one per Paragon level, refilled by every ascension.</summary>
+        /// <summary>Paragon Points: one per Paragon level. Ascending adds one; perks stay bought.</summary>
         public int ParagonPoints { get { return ParagonLevel; } }
         public int ParagonPointsSpent { get; private set; }
         public int ParagonPointsAvailable { get { return Math.Max(0, ParagonPoints - ParagonPointsSpent); } }
@@ -126,6 +126,7 @@ namespace IdleMine
         public event Action MinersChanged;
         public event Action<int> Ascended; // arg = Paragon levels gained
         public event Action<ParagonPerk> PerkPurchased;
+        public event Action PerksRespecced;
         public event Action<MineLayer> DrilledThrough;  // the drills broke through a layer (before the next one opens)
         public event Action DeepCoreOpened;          // first time the skill tree is completed
         public event Action<BlastResult> Blasted;     // a dynamite blast went off
@@ -174,22 +175,26 @@ namespace IdleMine
             if (save != null) ApplySave(save);
             else NewGame();
 
+            GrowParagonTree();
             _initialized = true;
             if (save != null) SimulateOffline(save.lastSaveUtcTicks);
             SyncBoost();
         }
 
-        /// <summary>Resets money, miners, the skill tree and Paragon perks back to a fresh start. Used both for a
-        /// brand new save and for Ascend, which calls this after banking a new Paragon level.</summary>
-        void NewGame()
+        /// <summary>Resets money, miners and the skill tree back to a fresh start. Used both for a brand new save
+        /// (which also clears Paragon perks) and for Ascend, which keeps them.</summary>
+        void NewGame(bool keepPerks = false)
         {
             Money = Config.startingMoney;
             _runMoney = 0;
             AssignedMiners = 0;
             Tree.ResetOwnership();
             DeepTree.ResetOwnership();
-            _ownedPerks.Clear();
-            ParagonPointsSpent = 0;
+            if (!keepPerks)
+            {
+                _ownedPerks.Clear();
+                ParagonPointsSpent = 0;
+            }
             Layers.Clear();
             Layers.Add(new MineLayer(0));
             RecalculateStats();
@@ -469,14 +474,15 @@ namespace IdleMine
             return bought;
         }
 
-        /// <summary>Banks exactly one Paragon level, then wipes money, miners, the skill tree and Paragon perks
-        /// back to a fresh start (perk points refill at the new level). LifetimeOre/LifetimeMoney and TotalTaps
-        /// are career totals and are never reset.</summary>
+        /// <summary>Banks exactly one Paragon level (one more Paragon Point), then wipes money, miners and the
+        /// skill tree back to a fresh start. Paragon perks are kept. LifetimeOre/LifetimeMoney and TotalTaps are
+        /// career totals and are never reset.</summary>
         public bool Ascend()
         {
             if (!CanAscend) return false;
             ParagonLevel += 1;
-            NewGame();
+            GrowParagonTree();
+            NewGame(keepPerks: true);
             if (Ascended != null) Ascended(1);
             Save();
             return true;
@@ -484,9 +490,12 @@ namespace IdleMine
 
         // ================================================================== Paragon tree
 
+        /// <summary>Keeps the (endless) tree generated a few tiers past the current Paragon level.</summary>
+        void GrowParagonTree() { ParagonTree.EnsureTiers(ParagonLevel + ParagonTree.TiersAhead); }
+
         public bool OwnsPerk(ParagonPerk p) { return _ownedPerks.Contains(p); }
 
-        /// <summary>Paragon level reached and the perk above it owned (the capstone needs both).</summary>
+        /// <summary>Paragon level reached and the perk above it owned.</summary>
         public bool IsPerkAvailable(ParagonPerk p)
         {
             if (p == null || OwnsPerk(p) || ParagonLevel < p.RequiredLevel) return false;
@@ -505,6 +514,20 @@ namespace IdleMine
             RecalculateStats();
             if (TotalMiners != minersBefore || SlotsPerLayer != slotsBefore) PlaceFreeMiners();
             if (PerkPurchased != null) PerkPurchased(p);
+            return true;
+        }
+
+        /// <summary>Refunds every Paragon perk for free so the points can be spent differently.</summary>
+        public bool RespecPerks()
+        {
+            if (_ownedPerks.Count == 0) return false;
+            _ownedPerks.Clear();
+            ParagonPointsSpent = 0;
+            RecalculateStats();
+            EnforceMinerLimits();
+            PlaceFreeMiners();
+            if (PerksRespecced != null) PerksRespecced();
+            Save();
             return true;
         }
 
@@ -801,6 +824,10 @@ namespace IdleMine
 
             _ownedPerks.Clear();
             ParagonPointsSpent = 0;
+            // Perk ids from before the endless tree (L0, R3, cap...) no longer exist: those points come back.
+            int deepest = 0;
+            foreach (var id in s.paragonPerks) deepest = Math.Max(deepest, ParagonTree.TierOf(id));
+            ParagonTree.EnsureTiers(Math.Min(deepest, 100000));
             foreach (var id in s.paragonPerks)
             {
                 var perk = ParagonTree.Get(id);
@@ -919,6 +946,7 @@ namespace IdleMine
         public void DebugAddParagonLevels(int levels)
         {
             ParagonLevel = Math.Max(0, ParagonLevel + levels);
+            GrowParagonTree();
             RecalculateStats();
             Save();
         }

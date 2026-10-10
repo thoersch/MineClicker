@@ -119,10 +119,12 @@ The only direct `Input` call is the Android back button closing the tree, and it
 
 **The Paragon tree** (`SkillTree/ParagonTree.cs`, `UI/ParagonTreeView.cs`):
 * Open it with the purple PARAGON TREE button in the skill tree. It turns over like a card.
-* Each run gives Paragon Points equal to your Paragon level.
-* Perks cost points, unlock at rising Paragon levels (1, 3, 5, 8, 12, 16, 20, then 30 for the capstone), and each needs the perk above it.
-* Perks last for the current run only: ascending clears them and refills the points.
-* Edit the perk table in `ParagonTree.Build()`.
+* You get one Paragon Point per Paragon level. Every perk costs 1 point.
+* There are three lanes: Crew, Riches and Depths. Tier N of each lane unlocks at Paragon N and needs the perk above it, so every new level always has something to spend on.
+* Every fifth tier is a major perk (x2 Miner Speed, x2 Ore Value, x2 Dig Speed or x3 Tap Power, plus a couple of extra miner slots).
+* The tree is endless. It is generated tier by tier and always reaches 10 tiers past your level.
+* Perks are kept when you ascend. RESPEC (tap twice) refunds every point for free.
+* Tune the lanes in `ParagonTree.Minor()` / `Major()`. Perk ids are `pa`/`pb`/`pc` plus the tier. Perks bought in the old 15-perk tree are refunded on load.
 
 **Haptics.** `Feedback.Play(Sfx.X)` plays a sound together with a matching haptic, from a selection tick on button presses up to heavy hits for keystones, Motherlodes and ascending. The iOS side is `Assets/Plugins/iOS/IdleMineHaptics.mm`. Players can turn haptics off in Settings.
 
